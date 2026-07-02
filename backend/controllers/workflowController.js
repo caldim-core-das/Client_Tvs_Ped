@@ -22,6 +22,24 @@ const { isValidTransition, getStageForState } = require('../middleware/workflowA
 const { sendWorkflowNotification }            = require('../services/workflowNotificationService');
 const { estimateLeadTime }                    = require('../services/leadTimeService');
 const { sendRequesterStatusEmail }            = require('./emailController');
+const { computeLeadTimeStatus }               = require('../utils/leadTimeStatus');
+
+// ─── Helper: build the full leadTime payload (estimate + consumed/remaining/status) ──
+function buildLeadTimePayload(request) {
+    const status = computeLeadTimeStatus({
+        createdAt: request.createdAt,
+        leadTimeEstimateDays: request.leadTimeEstimate
+    });
+    if (!status) return null;
+    return {
+        estimatedDays:  request.leadTimeEstimate,
+        confidence:     request.leadTimeConfidence,
+        source:         request.leadTimeSource,
+        factors:        request.leadTimeFactors,
+        generatedAt:    request.leadTimeGeneratedAt,
+        ...status
+    };
+}
 
 // ─── Multer config for design documents ──────────────────────────────────────
 const designStorage = multer.diskStorage({
@@ -80,13 +98,7 @@ const getWorkflowState = asyncHandler(async (req, res) => {
             checker:       request.assignedChecker,
             finalApprover: request.assignedFinalApprover
         },
-        leadTime: {
-            estimatedDays:  request.leadTimeEstimate,
-            confidence:     request.leadTimeConfidence,
-            source:         request.leadTimeSource,
-            factors:        request.leadTimeFactors,
-            generatedAt:    request.leadTimeGeneratedAt
-        },
+        leadTime: buildLeadTimePayload(request),
         stageFlags:   request.stageFlags,
         stageHistory: request.stageHistory,
         designDocuments: request.designDocuments
@@ -136,7 +148,9 @@ const getWorkflowQueue = asyncHandler(async (req, res) => {
         .select('-stageHistory -emailLog')
         .lean();
 
-    res.json({ count: requests.length, data: requests });
+    const data = requests.map(r => ({ ...r, leadTime: buildLeadTimePayload(r) }));
+
+    res.json({ count: data.length, data });
 });
 
 // ─── POST /api/workflow/:requestId/l1-approve ─────────────────────────────────
@@ -211,20 +225,23 @@ const l1Approve = asyncHandler(async (req, res) => {
     });
 
     const updatedRequest = await MHRequest.findById(request._id).lean();
+    const leadTime = buildLeadTimePayload(updatedRequest);
 
     // Notifications
     const actor = buildActor(req.user);
     const sendIfEmail = (email, name, role, event) => {
-        if (email) sendWorkflowNotification({ request: updatedRequest, event, recipient: { email, name, role }, actor }).catch(console.error);
+        if (email) sendWorkflowNotification({ request: updatedRequest, event, recipient: { email, name, role }, actor, leadTime }).catch(console.error);
     };
 
     sendIfEmail(designer.mailId, designer.employeeName, 'Designer', 'L1_APPROVED');
+    sendIfEmail(checker.mailId, checker.employeeName, 'Checker', 'CHECKER_ASSIGNED');
     sendIfEmail(request.mailId, request.userName, 'Requester', 'L1_APPROVED');
 
     res.json({
         success:      true,
         workflowState: 'DESIGN_IN_PROGRESS',
         currentStage:  3,
+        leadTime,
         message:      `Request approved. Designer ${designer.employeeName} and Checker ${checker.employeeName} assigned.`
     });
 });
@@ -261,14 +278,16 @@ const l1Reject = asyncHandler(async (req, res) => {
     });
 
     const updatedRequest = await MHRequest.findById(request._id).lean();
+    const leadTime = buildLeadTimePayload(updatedRequest);
     const actor = buildActor(req.user);
-    
+
     // Workflow Notification
     sendWorkflowNotification({
         request: updatedRequest,
         event:   'L1_REJECTED',
         recipient: { email: request.mailId, name: request.userName, role: 'Requester' },
-        actor
+        actor,
+        leadTime
     }).catch(console.error);
 
     // Request Tracker style email notification
@@ -291,7 +310,7 @@ const l1Reject = asyncHandler(async (req, res) => {
         console.error('[AutoEmail] Could not resolve requester email for status notification:', emailErr.message);
     }
 
-    res.json({ success: true, workflowState: 'L1_REJECTED', message: 'Request rejected and requester notified.' });
+    res.json({ success: true, workflowState: 'L1_REJECTED', leadTime, message: 'Request rejected and requester notified.' });
 });
 
 // ─── POST /api/workflow/:requestId/designer-reject ────────────────────────────
@@ -326,7 +345,8 @@ const designerReject = asyncHandler(async (req, res) => {
     });
 
     const updatedRequest = await MHRequest.findById(request._id).lean();
-    
+    const leadTime = buildLeadTimePayload(updatedRequest);
+
     try {
         const requesterEmployee = await Employee.findOne({ mailId: updatedRequest.mailId })
             || await Employee.findOne({ employeeName: updatedRequest.userName });
@@ -346,7 +366,7 @@ const designerReject = asyncHandler(async (req, res) => {
         console.error('[AutoEmail] Could not resolve requester email for status notification:', emailErr.message);
     }
 
-    res.json({ success: true, workflowState: 'REVERTED', message: 'Request reverted back to requester.' });
+    res.json({ success: true, workflowState: 'REVERTED', leadTime, message: 'Request reverted back to requester.' });
 });
 
 // ─── POST /api/workflow/:requestId/submit-design ──────────────────────────────
@@ -392,6 +412,7 @@ const submitDesign = [
 
         const updatedRequest = await MHRequest.findById(request._id)
             .populate('assignedChecker', 'mailId employeeName').lean();
+        const leadTime = buildLeadTimePayload(updatedRequest);
 
         const actor   = buildActor(req.user);
         const checker = updatedRequest.assignedChecker;
@@ -400,14 +421,16 @@ const submitDesign = [
                 request:   updatedRequest,
                 event:     'DESIGN_SUBMITTED',
                 recipient: { email: checker.mailId, name: checker.employeeName, role: 'Checker' },
-                actor
+                actor,
+                leadTime
             }).catch(console.error);
         }
 
         res.json({
             success:        true,
             workflowState:  'DESIGN_SUBMITTED',
-            documentsAdded: newDocs.length
+            documentsAdded: newDocs.length,
+            leadTime
         });
     })
 ];
@@ -469,6 +492,7 @@ const checkDesign = asyncHandler(async (req, res) => {
 
     const updatedRequest = await MHRequest.findById(request._id)
         .populate('assignedDesigner assignedFinalApprover', 'mailId employeeName').lean();
+    const leadTime = buildLeadTimePayload(updatedRequest);
 
     const actor = buildActor(req.user);
     if (action === 'approve') {
@@ -478,7 +502,8 @@ const checkDesign = asyncHandler(async (req, res) => {
                 request:   updatedRequest,
                 event:     'DESIGN_APPROVED',
                 recipient: { email: fa.mailId, name: fa.employeeName, role: 'Final Approver' },
-                actor
+                actor,
+                leadTime
             }).catch(console.error);
         }
     } else {
@@ -488,7 +513,8 @@ const checkDesign = asyncHandler(async (req, res) => {
                 request:   updatedRequest,
                 event:     'DESIGN_REJECTED',
                 recipient: { email: designer.mailId, name: designer.employeeName, role: 'Designer' },
-                actor
+                actor,
+                leadTime
             }).catch(console.error);
         }
     }
@@ -496,7 +522,8 @@ const checkDesign = asyncHandler(async (req, res) => {
     res.json({
         success:       true,
         workflowState: action === 'approve' ? 'DESIGN_APPROVED' : 'DESIGN_IN_PROGRESS',
-        action
+        action,
+        leadTime
     });
 });
 
@@ -541,16 +568,16 @@ const finalApprove = asyncHandler(async (req, res) => {
     await MHRequest.findByIdAndUpdate(request._id, updateData);
 
     const updatedRequest = await MHRequest.findById(request._id).lean();
+    const leadTime = buildLeadTimePayload(updatedRequest);
     const actor = buildActor(req.user);
 
     if (action === 'approve') {
-        // Notify PED Engineers (get all PED Engineers)
-        const { Employee: Emp } = require('../models/EmployeeModel');
         sendWorkflowNotification({
             request:   updatedRequest,
             event:     'FINAL_APPROVED',
             recipient: { email: request.mailId, name: request.userName, role: 'Requester' },
-            actor
+            actor,
+            leadTime
         }).catch(console.error);
     } else {
         // Notify L1 Approver (approver assigned to department)
@@ -562,14 +589,16 @@ const finalApprove = asyncHandler(async (req, res) => {
                 name:  'L1 Approver',
                 role:  'L1 Approver'
             },
-            actor
+            actor,
+            leadTime
         }).catch(console.error);
     }
 
     res.json({
         success:       true,
         workflowState: targetState,
-        action
+        action,
+        leadTime
     });
 });
 
@@ -622,6 +651,7 @@ const advanceProduction = asyncHandler(async (req, res) => {
     await MHRequest.findByIdAndUpdate(request._id, updateData);
 
     const updatedRequest = await MHRequest.findById(request._id).lean();
+    const leadTime = buildLeadTimePayload(updatedRequest);
     const actor = buildActor(req.user);
     const event = stage === 'IN_PRODUCTION' ? 'IN_PRODUCTION' : stage === 'COMPLETED' ? 'COMPLETED' : null;
     if (event) {
@@ -629,11 +659,12 @@ const advanceProduction = asyncHandler(async (req, res) => {
             request:   updatedRequest,
             event,
             recipient: { email: request.mailId, name: request.userName, role: 'Requester' },
-            actor
+            actor,
+            leadTime
         }).catch(console.error);
     }
 
-    res.json({ success: true, workflowState: stage, currentStage: stageNum });
+    res.json({ success: true, workflowState: stage, currentStage: stageNum, leadTime });
 });
 
 // ─── GET /api/workflow/lead-time/estimate/:requestId ─────────────────────────

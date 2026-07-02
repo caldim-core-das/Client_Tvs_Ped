@@ -22,13 +22,15 @@ const workflowNotificationLogSchema = new mongoose.Schema({
             'L1_APPROVED',
             'L1_REJECTED',
             'DESIGNER_ASSIGNED',
+            'CHECKER_ASSIGNED',
             'DESIGN_SUBMITTED',
             'DESIGN_APPROVED',
             'DESIGN_REJECTED',
             'FINAL_APPROVED',
             'FINAL_REJECTED',
             'IN_PRODUCTION',
-            'COMPLETED'
+            'COMPLETED',
+            'ESCALATION_REMINDER'
         ]
     },
     recipient:     { type: String, required: true },

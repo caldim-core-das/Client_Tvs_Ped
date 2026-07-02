@@ -6,8 +6,10 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { getWorkflowQueue } from '../../api/workflowApi';
 import { useAuth } from '../../context/AuthContext';
+import LeadTimeChip from '../../components/LeadTimeChip';
 import {
     LayoutDashboard, RefreshCw, CheckCircle2, XCircle, Clock, Activity,
     ChevronRight, ArrowRight, ShieldCheck, MailWarning, Bell, Search, AlertCircle
@@ -23,22 +25,6 @@ const REQUEST_TYPE_COLORS = {
     'Capacity':             { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
     'Special Improvements': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
 };
-
-function LeadTimeBadge({ days, confidence }) {
-    if (!days) return null;
-    let colorClass = 'text-green-600';
-    if (confidence < 70) colorClass = 'text-red-600';
-    else if (confidence < 85) colorClass = 'text-amber-600';
-
-    return (
-        <div className="flex flex-col items-center justify-center min-w-[64px]">
-            <div className={`text-lg font-bold leading-none ${colorClass}`}>{days}d</div>
-            <div className="text-[10px] text-slate-400 font-medium mt-1 uppercase tracking-wider">
-                {confidence}% conf.
-            </div>
-        </div>
-    );
-}
 
 export default function L1ApprovalQueuePage() {
     const navigate = useNavigate();
@@ -57,6 +43,7 @@ export default function L1ApprovalQueuePage() {
             setLastSync(new Date());
         } catch (err) {
             console.error('Failed to fetch L1 Queue:', err);
+            toast.error('Failed to load L1 approval queue');
         } finally {
             setLoading(false);
             setIsRefreshing(false);
@@ -240,7 +227,7 @@ export default function L1ApprovalQueuePage() {
                                                         <div className="hidden md:block w-px h-10 bg-slate-200"></div>
 
                                                         <div className="hidden md:block px-4">
-                                                            <LeadTimeBadge days={req.leadTimeEstimate} confidence={req.leadTimeConfidence} />
+                                                            <LeadTimeChip leadTime={req.leadTime} />
                                                         </div>
 
                                                         <div className="hidden sm:block w-px h-10 bg-slate-200"></div>

@@ -252,7 +252,8 @@ const mhRequestSchema = new mongoose.Schema({
         designApprovedAt:  { type: Date, default: null },
         finalApprovedAt:   { type: Date, default: null },
         productionStartAt: { type: Date, default: null },
-        implementedAt:     { type: Date, default: null }
+        implementedAt:     { type: Date, default: null },
+        lastReminderAt:    { type: Date, default: null }
     },
 
     // ── Approval Comments / Digital Remarks ───────────────────────────────────

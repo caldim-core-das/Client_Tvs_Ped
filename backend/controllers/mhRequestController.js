@@ -5,16 +5,18 @@ const Employee = require('../models/EmployeeModel');
 const nodemailer = require('nodemailer');
 const { sendRequesterStatusEmail } = require('./emailController');
 const { estimateLeadTime } = require('../services/leadTimeService');
+const { sendWorkflowNotification } = require('../services/workflowNotificationService');
+const { computeLeadTimeStatus } = require('../utils/leadTimeStatus');
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helper: build & send auto-notification email to approver on request creation
+// Enterprise Workflow v2: notify the L1 Approver on request submission.
+// Replaces the legacy "assign a PED Engineer" email — L1 now assigns
+// Designer + Checker directly from the portal (see workflowController.l1Approve).
 // ─────────────────────────────────────────────────────────────────────────────
-async function sendAutoApproverEmail(savedRequest) {
-    if (!process.env.SMTP_HOST || !process.env.SMTP_USER) return;
-
+async function notifyL1OnSubmission(savedRequest, estimate, requester) {
     try {
-        // 1. Find approver for the department
+        // 1. Find L1 Approver for the department
         const dept = savedRequest.departmentName;
         const approver = await Employee.findOne({
             role: 'L1 Approver',
@@ -23,119 +25,44 @@ async function sendAutoApproverEmail(savedRequest) {
         }) || await Employee.findOne({ role: 'L1 Approver', status: 'Active' });
 
         if (!approver || !approver.mailId) {
-            console.warn('[AutoEmail] No approver found for dept:', dept);
+            console.warn('[WorkflowV2] No L1 Approver found for dept:', dept);
             return;
         }
 
-        // 2. Fetch all active PED engineers
-        const engineers = await Employee.find({ role: 'PED Engineer', status: 'Active' })
-            .select('_id employeeId employeeName mailId departmentName');
-
-        // 3. Build assignment links
-        const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
-        const portalUrl  = process.env.FRONTEND_URL || 'http://localhost:5173';
-
-        const engineerRows = engineers.length > 0
-            ? engineers.map(e => `
-                <tr>
-                  <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">
-                    <strong>${e.employeeName}</strong><br>
-                    <span style="color:#64748b;font-size:12px;">${e.employeeId} · ${e.departmentName || ''}</span>
-                  </td>
-                  <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:center;">
-                    <a href="${backendUrl}/api/asset-request/${savedRequest._id}/assign-link/${e._id}"
-                       style="background:#B31818;color:#fff;padding:7px 18px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">
-                      Assign
-                    </a>
-                  </td>
-                </tr>`).join('')
-            : `<tr><td colspan="2" style="padding:12px;color:#94a3b8;">No PED Engineers registered yet.</td></tr>`;
-
-        const html = `
-<div style="font-family:Arial,sans-serif;max-width:660px;margin:0 auto;background:#f8fafc;">
-  <div style="background:#B31818;color:#fff;padding:24px 28px;border-radius:8px 8px 0 0;">
-    <h2 style="margin:0;font-size:20px;">New MH Request — Action Required</h2>
-    <p style="margin:6px 0 0;opacity:.8;font-size:13px;">TVS-PED Portal · Auto Notification</p>
-  </div>
-  <div style="padding:24px 28px;background:#fff;border:1px solid #e2e8f0;border-top:none;">
-    <p style="margin:0 0 16px;">Dear <strong>${approver.employeeName}</strong>,</p>
-    <p style="margin:0 0 20px;color:#475569;">A new Material Handling (MH) request has been submitted and requires your approval. Please review the details below and assign a PED Engineer.</p>
-
-    <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px;">
-      <tr style="background:#f1f5f9;"><td colspan="2" style="padding:8px 12px;font-weight:700;color:#B31818;letter-spacing:.5px;font-size:12px;text-transform:uppercase;">Request Details</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;width:42%;background:#f8fafc;">Request ID</td><td style="padding:8px 12px;">${savedRequest.mhRequestId}</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Submitted By</td><td style="padding:8px 12px;">${savedRequest.userName}</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Department</td><td style="padding:8px 12px;">${savedRequest.departmentName}</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Handling Part</td><td style="padding:8px 12px;">${savedRequest.handlingPartName}</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Equipment Type</td><td style="padding:8px 12px;">${savedRequest.materialHandlingEquipment || '—'}</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Location</td><td style="padding:8px 12px;">${savedRequest.materialHandlingLocation} (${savedRequest.plantLocation})</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Flow</td><td style="padding:8px 12px;">${savedRequest.from} → ${savedRequest.to}</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Volume/Day</td><td style="padding:8px 12px;">${savedRequest.volumePerDay}</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Request Type</td><td style="padding:8px 12px;">${savedRequest.requestType}</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Problem Statement</td><td style="padding:8px 12px;">${savedRequest.problemStatement}</td></tr>
-    </table>
-
-    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
-      <p style="margin:0 0 12px;font-weight:700;color:#1e40af;font-size:14px;">👷 Assign a PED Engineer</p>
-      <p style="margin:0 0 12px;color:#475569;font-size:13px;">Click <strong>Assign</strong> next to an engineer to assign them to this request. The engineer will be automatically notified.</p>
-      <table style="width:100%;border-collapse:collapse;font-size:14px;">
-        <tr style="background:#dbeafe;">
-          <th style="padding:8px 12px;text-align:left;color:#1e40af;font-size:12px;">Engineer</th>
-          <th style="padding:8px 12px;text-align:center;color:#1e40af;font-size:12px;">Action</th>
-        </tr>
-        ${engineerRows}
-      </table>
-    </div>
-
-    <p style="margin:0 0 8px;font-size:13px;color:#475569;">
-      You can also view and manage this request in the portal:
-      <a href="${portalUrl}/mh-requests" style="color:#B31818;font-weight:600;">Open TVS-PED Portal</a>
-    </p>
-    <p style="margin:24px 0 0;color:#64748b;font-size:13px;">Regards,<br><strong>TVS-PED Portal</strong></p>
-  </div>
-  <div style="padding:12px 28px;text-align:center;font-size:11px;color:#94a3b8;">This is an automated notification. Do not reply to this email.</div>
-</div>`;
-
-        const transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: parseInt(process.env.SMTP_PORT) || 587,
-            secure: false,
-            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-            tls: { rejectUnauthorized: false }
-        });
-
-        const subject = `[Action Required] MH Request ${savedRequest.mhRequestId} — ${savedRequest.handlingPartName}`;
-
-        await transporter.sendMail({
-            from: process.env.SMTP_USER,
-            to: approver.mailId,
-            subject,
-            html
-        });
-
-        // Save approver reference + email log + workflowStatus on the request
+        // Persist approver reference — read later by workflowController
+        // (e.g. finalApprove's reject path notifies request.approverEmail)
         await MHRequest.findByIdAndUpdate(savedRequest._id, {
             $set: {
                 approver: approver._id,
                 approverEmail: approver.mailId,
                 workflowStatus: 'Notified'
-            },
-            $push: {
-                emailLog: {
-                    sentAt: new Date(),
-                    to: approver.mailId,
-                    cc: '',
-                    subject,
-                    body: html,
-                    status: 'Delivered'
-                }
             }
         });
 
-        console.log(`[AutoEmail] Approval email sent to ${approver.mailId} for ${savedRequest.mhRequestId}`);
+        const leadTimeStatus = computeLeadTimeStatus({
+            createdAt: savedRequest.createdAt,
+            leadTimeEstimateDays: estimate.estimatedDays
+        });
+
+        await sendWorkflowNotification({
+            request: savedRequest,
+            event: 'REQUEST_SUBMITTED',
+            recipient: { email: approver.mailId, name: approver.employeeName, role: 'L1 Approver' },
+            actor: { userId: requester?.id || requester?._id, userName: savedRequest.userName, role: 'Requester' },
+            leadTime: {
+                estimatedDays: estimate.estimatedDays,
+                confidence:    estimate.confidence,
+                source:        estimate.source,
+                factors:       estimate.factors,
+                recommendation: estimate.recommendation,
+                ...leadTimeStatus
+            }
+        });
+
+        console.log(`[WorkflowV2] REQUEST_SUBMITTED notification sent to L1 Approver ${approver.mailId} for ${savedRequest.mhRequestId}`);
     } catch (err) {
-        console.error('[AutoEmail] Failed to send approver email:', err.message);
-        // Non-fatal — request was saved, email failure should not block the response
+        console.error('[WorkflowV2] Failed to notify L1 Approver:', err.message);
+        // Non-fatal — request was saved, notification failure should not block the response
     }
 }
 
@@ -285,8 +212,9 @@ const createMHRequest = async (req, res) => {
 
         const savedRequest = await newRequest.save();
 
-        // ── Enterprise Workflow v2: set state machine fields ─────────────────────────
-        // Non-blocking update — failure here does not affect the saved request
+        // ── Enterprise Workflow v2: init state machine, estimate lead time, notify L1 ──
+        // Sequential (estimate must exist before we can notify with lead-time context).
+        // Non-blocking — failure here does not affect the saved request response.
         (async () => {
             try {
                 const historyEntry = {
@@ -319,13 +247,13 @@ const createMHRequest = async (req, res) => {
                 });
 
                 console.log(`[WorkflowV2] Request ${savedRequest.mhRequestId} initialized — Lead Time: ${estimate.estimatedDays} days (${estimate.confidence}% confidence)`);
+
+                // Notify the L1 Approver — single email, replaces the legacy "assign a PED Engineer" flow
+                await notifyL1OnSubmission(savedRequest, estimate, req.user);
             } catch (wfErr) {
                 console.error('[WorkflowV2] Non-fatal init error:', wfErr.message);
             }
         })();
-
-        // Auto-send approval email to approver (fire-and-forget, non-blocking)
-        sendAutoApproverEmail(savedRequest).catch(e => console.error('[AutoEmail]', e.message));
 
         res.status(201).json(savedRequest);
 

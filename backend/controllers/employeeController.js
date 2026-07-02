@@ -106,7 +106,7 @@ const createEmployee = asyncHandler(async (req, res) => {
     }
 
     // Determine the role for the Employee record
-    const validRoles = ['Admin', 'Requester', 'L1 Approver', 'PED Engineer'];
+    const validRoles = ['Admin', 'Requester', 'L1 Approver', 'PED Engineer', 'Designer', 'Checker', 'Final Approver'];
     const employeeRole = (role && validRoles.includes(role)) ? role : 'Requester';
 
     const employee = await Employee.create({
@@ -219,7 +219,7 @@ const updateEmployee = asyncHandler(async (req, res) => {
         let user = await User.findOne({ employeeId: employee._id });
 
         // Resolve the new user role
-        const validRoles = ['Admin', 'Requester', 'L1 Approver', 'PED Engineer'];
+        const validRoles = ['Admin', 'Requester', 'L1 Approver', 'PED Engineer', 'Designer', 'Checker', 'Final Approver'];
         let resolvedUserRole = null;
         if (updatedRole && validRoles.includes(updatedRole)) {
             resolvedUserRole = updatedRole;
