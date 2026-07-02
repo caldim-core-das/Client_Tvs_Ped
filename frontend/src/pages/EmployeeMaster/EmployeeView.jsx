@@ -88,7 +88,7 @@ const EmployeeView = () => {
         { label: 'Email', value: employee.mailId, icon: Mail },
         { label: 'Department', value: employee.departmentName, icon: Building },
         { label: 'Plant Location', value: employee.plantLocation, icon: MapPin },
-        { label: 'Access Level', value: employee.accessLevel, icon: Shield, badge: true },
+        { label: 'Workflow Role', value: employee.role || 'Requester', icon: Shield, badge: true },
         { label: 'Status', value: employee.status, icon: Shield, badge: true },
         { label: 'Created', value: formatDate(employee.createdAt), icon: Calendar },
         { label: 'Last Updated', value: formatDate(employee.updatedAt), icon: Calendar },
@@ -136,7 +136,7 @@ const EmployeeView = () => {
                                     {item.label}
                                 </div>
                                 {item.badge ? (
-                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${item.label === 'Access Level' ? getAccessLevelColor(item.value) : getStatusColor(item.value)}`}>
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${item.label === 'Workflow Role' ? getAccessLevelColor(item.value) : getStatusColor(item.value)}`}>
                                         {item.value}
                                     </span>
                                 ) : (

@@ -36,6 +36,7 @@
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.10.1",
     "tailwind-merge": "^3.4.0",
+    "tvs-ped-portal": "file:..",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

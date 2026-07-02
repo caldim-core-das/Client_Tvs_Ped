@@ -100,7 +100,7 @@ const KanbanPipeline = ({ pipelineItems = [], kpiSettings = {}, onPhaseClick }) 
         if (!targetPhase) return;
 
         try {
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token');
             await axios.put(`http://localhost:5000/api/mh-development-tracker/${movedItem._id}`, 
                 { currentStage: targetPhase.dbStage },
                 { headers: { Authorization: `Bearer ${token}` } }

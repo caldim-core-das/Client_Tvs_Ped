@@ -28,7 +28,7 @@ const KPISettingsSection = () => {
     const fetchSettings = async () => {
         try {
             const response = await axios.get(`${API_BASE_URL}/api/kpi-settings`, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
             });
             if (response.data) {
                 setSettings(response.data);
@@ -60,7 +60,7 @@ const KPISettingsSection = () => {
         setLoading(true);
         try {
             await axios.put(`${API_BASE_URL}/api/kpi-settings`, settings, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
             });
             message.success('KPI settings saved successfully');
         } catch (error) {

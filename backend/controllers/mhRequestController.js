@@ -354,7 +354,12 @@ const createMHRequest = async (req, res) => {
 // @access  Public
 const getAllMHRequests = async (req, res) => {
     try {
-        const requests = await MHRequest.find({ activeStatus: true })
+        const requests = await MHRequest.find({ 
+            $or: [
+                { activeStatus: true }, 
+                { activeStatus: { $exists: false } }
+            ] 
+        })
             .populate('assignedVendor')
             .sort({ createdAt: -1 });
         res.json(requests);

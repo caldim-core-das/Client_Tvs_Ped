@@ -52,3 +52,23 @@ The **TVS PED Material Handling System** is a comprehensive web-based platform d
 - Reduction in approval turnaround times.
 - Accurate reporting of vendor delivery timelines via the integrated calendar dashboard.
 - Zero downtime during the deployment of dynamic role modifications.
+
+## 7. Example Workflows (MH Request)
+
+To help visualize the system in action, below are two realistic data scenarios tracing a Material Handling (MH) request from initiation through the approval matrix.
+
+### Scenario 1: Fully Accepted Workflow (End-to-End Success)
+- **Step 1 - Requester:** An assembly line worker submits a new MH request for a "Heavy-Duty Pallet Truck for Assembly Line B" to handle increased load capacity.
+- **Step 2 - L1 Approver:** The shift manager (L1 Approver) reviews the request, confirms the operational need, approves it, and assigns it to a PED Engineer (e.g., John Doe).
+- **Step 3 - PED Engineer:** John Doe evaluates the technical requirements and assigns the specific drafting task to a Designer (e.g., Jane Smith).
+- **Step 4 - Designer:** Jane Smith creates the required 3D models and manufacturing drawings, uploads the CAD files into the system, and forwards the request for checking.
+- **Step 5 - Checker:** The senior engineer (Checker) reviews Jane's design, confirms it meets all safety and load-bearing standards, and approves the design.
+- **Step 6 - Final Approver:** The department head (Final Approver) reviews the complete package, provides final sign-off, and the request successfully transitions to the **Development & Vendor Tracking** phase for procurement.
+
+### Scenario 2: Rejected Workflow (Feedback Loop / Rejection)
+- **Step 1 - Requester:** A line supervisor submits a request for a "Custom Engine Lifter".
+- **Step 2 - L1 Approver:** The L1 Approver validates the initial feasibility, approves the request, and assigns it to a PED Engineer (e.g., Alice).
+- **Step 3 - PED Engineer:** Alice reviews the operational context and assigns the design work to a Designer (e.g., Bob).
+- **Step 4 - Designer:** Bob uploads the preliminary CAD files and forwards the request to the Checker.
+- **Step 5 - Checker:** The Checker reviews the design and identifies that the proposed engine lifter violates ergonomic safety compliance standards. 
+- **Step 6 - Rejection Action:** The Checker **rejects** the design. The system automatically reverts the request status, and an automated email notification is dispatched to the Requester detailing the rejection reason (e.g., "Design fails ergonomic safety compliance"). The workflow halts until a revised or new request is submitted.

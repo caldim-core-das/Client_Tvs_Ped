@@ -178,6 +178,7 @@ const EmployeeMaster = () => {
                     employeeName: row['Employee Name'] || row['employeeName'] || '',
                     departmentName: row['Department'] || row['departmentName'] || '',
                     plantLocation: row['Location'] || row['plantLocation'] || '',
+                    role: row['Workflow Role'] || row['role'] || row['Role'] || undefined,
                     accessLevel: row['Access Level'] || row['accessLevel'] || 'Employee',
                     mailId: row['Email'] || row['mailId'] || '',
                     status: row['Status'] || row['status'] || 'Active',
@@ -220,7 +221,7 @@ const EmployeeMaster = () => {
     const handleConfirmImport = async () => {
         try {
             const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '') + '/api';
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token');
 
             let successCount = 0;
             let errorCount = 0;
@@ -269,6 +270,7 @@ const EmployeeMaster = () => {
                 'Employee Name': 'John Doe',
                 'Department': 'Engineering',
                 'Location': 'Plant A',
+                'Workflow Role': 'L1 Approver',
                 'Access Level': 'Employee',
                 'Email': 'john.doe@example.com',
                 'Status': 'Active',
@@ -495,16 +497,17 @@ const EmployeeMaster = () => {
             renderHeaderCell: FilterHeaderCell
         },
         {
-            key: 'accessLevel',
-            name: 'ACCESS LEVEL',
-            width: 150,
+            key: 'role',
+            name: 'WORKFLOW ROLE',
+            width: 160,
             renderHeaderCell: FilterHeaderCell,
             renderCell: ({ row }) => (
-                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border inline-block ${getAccessLevelColor(row.accessLevel)}`}>
-                    {row.accessLevel}
+                <span className="font-bold text-gray-800 text-[11px] uppercase tracking-wide">
+                    {row.role || 'Requester'}
                 </span>
             )
         },
+
         {
             key: 'mailId',
             name: 'EMAIL',

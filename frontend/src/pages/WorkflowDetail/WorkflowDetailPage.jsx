@@ -22,7 +22,7 @@ import WorkflowActions     from './WorkflowActions';
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const getAuthHeader = () => {
-    const t = localStorage.getItem('token');
+    const t = sessionStorage.getItem('token');
     return t ? { Authorization: `Bearer ${t}` } : {};
 };
 
