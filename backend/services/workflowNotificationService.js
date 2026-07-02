@@ -52,6 +52,27 @@ function buildEmailTemplate(event, data) {
 
     const portalBtn = `<a href="${portalUrl}" style="display:inline-block;background:#B31818;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:600;margin-top:12px;">Open Portal</a>`;
 
+    // ─── Lead Time Status block ─── Consumed/Remaining/% — rendered whenever a
+    // leadTime payload with computed status (see backend/utils/leadTimeStatus.js) is passed.
+    const leadTimeStatusBlock = (() => {
+        if (!leadTime || leadTime.consumedDays === undefined || leadTime.consumedDays === null) return '';
+        const STATUS_STYLE = {
+            ON_TRACK:  { bg: '#f0fdf4', border: '#bbf7d0', text: '#166534', label: 'On Track' },
+            ATTENTION: { bg: '#fffbeb', border: '#fde68a', text: '#92400e', label: 'Attention Required' },
+            OVERDUE:   { bg: '#fef2f2', border: '#fecaca', text: '#991b1b', label: `Overdue by ${leadTime.overdueByDays} Day(s)` }
+        };
+        const s = STATUS_STYLE[leadTime.status] || STATUS_STYLE.ON_TRACK;
+        return `
+    <div style="background:${s.bg};border:1px solid ${s.border};border-radius:8px;padding:14px 20px;margin-bottom:24px;">
+      <p style="margin:0 0 4px;font-weight:700;color:${s.text};font-size:12px;text-transform:uppercase;letter-spacing:.5px;">⏱ Lead Time Status — ${s.label}</p>
+      <p style="margin:0;font-size:14px;color:#374151;">
+        <strong>${leadTime.consumedDays}</strong> of <strong>${leadTime.estimatedDays}</strong> days consumed
+        &nbsp;·&nbsp; <strong>${Math.max(leadTime.remainingDays, 0)}</strong> days remaining
+        &nbsp;·&nbsp; ${leadTime.percent}% complete
+      </p>
+    </div>`;
+    })();
+
     const templates = {
         REQUEST_SUBMITTED: {
             subject: `[TVS-PED] New MH Request — ${request.mhRequestId} — Action Required`,
@@ -59,6 +80,7 @@ function buildEmailTemplate(event, data) {
               <p>Dear <strong>${recipient.name}</strong>,</p>
               <p style="color:#475569;">A new MH request requires your <strong>L1 Approval</strong>. Please review the details and the AI Lead Time Insight below.</p>
               ${requestTable}
+              ${leadTimeStatusBlock}
               ${leadTime ? `
               <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
                 <p style="margin:0 0 8px;font-weight:700;color:#15803d;">🤖 AI Lead Time Insight</p>
@@ -78,6 +100,7 @@ function buildEmailTemplate(event, data) {
               <p>Dear <strong>${recipient.name}</strong>,</p>
               <p style="color:#475569;">You have been assigned as the <strong>Designer</strong> for the following MH Request. Please begin design work promptly.</p>
               ${requestTable}
+              ${leadTimeStatusBlock}
               ${portalBtn}
               ${footer}`
         },
@@ -100,6 +123,17 @@ function buildEmailTemplate(event, data) {
               <p>Dear <strong>${recipient.name}</strong>,</p>
               <p>You have been assigned as Designer for request <strong>${request.mhRequestId}</strong>. Please log in and begin your design work.</p>
               ${requestTable}
+              ${leadTimeStatusBlock}
+              ${portalBtn}
+              ${footer}`
+        },
+        CHECKER_ASSIGNED: {
+            subject: `[TVS-PED] Assigned as Checker — ${request.mhRequestId}`,
+            html: `${header('Checker Assignment — Design Pending')}
+              <p>Dear <strong>${recipient.name}</strong>,</p>
+              <p style="color:#475569;">You have been assigned as the <strong>Checker</strong> for the following MH Request. The design is currently in progress — you will be notified as soon as it is submitted for your review.</p>
+              ${requestTable}
+              ${leadTimeStatusBlock}
               ${portalBtn}
               ${footer}`
         },
@@ -109,6 +143,7 @@ function buildEmailTemplate(event, data) {
               <p>Dear <strong>${recipient.name}</strong>,</p>
               <p>The designer has submitted design documents for <strong>${request.mhRequestId}</strong>. Please review and approve or reject the design.</p>
               ${requestTable}
+              ${leadTimeStatusBlock}
               ${portalBtn}
               ${footer}`
         },
@@ -118,6 +153,7 @@ function buildEmailTemplate(event, data) {
               <p>Dear <strong>${recipient.name}</strong>,</p>
               <p>The design for <strong>${request.mhRequestId}</strong> has passed Checker Review and is awaiting your Final Approval.</p>
               ${requestTable}
+              ${leadTimeStatusBlock}
               ${portalBtn}
               ${footer}`
         },
@@ -127,6 +163,7 @@ function buildEmailTemplate(event, data) {
               <p>Dear <strong>${recipient.name}</strong>,</p>
               <p>Your design for <strong>${request.mhRequestId}</strong> has been returned by the Checker for revision.</p>
               ${requestTable}
+              ${leadTimeStatusBlock}
               <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
                 <p style="margin:0 0 6px;font-weight:700;color:#991b1b;">Checker Feedback:</p>
                 <p style="margin:0;color:#374151;">${request.checkerComment || 'Please review and resubmit.'}</p>
@@ -140,6 +177,7 @@ function buildEmailTemplate(event, data) {
               <p>Dear <strong>${recipient.name}</strong>,</p>
               <p>MH Request <strong>${request.mhRequestId}</strong> has received Final Approval and is cleared for Production.</p>
               ${requestTable}
+              ${leadTimeStatusBlock}
               ${portalBtn}
               ${footer}`
         },
@@ -149,6 +187,7 @@ function buildEmailTemplate(event, data) {
               <p>Dear <strong>${recipient.name}</strong>,</p>
               <p>The Final Approver has rejected <strong>${request.mhRequestId}</strong>. Re-evaluation at L1 level is required.</p>
               ${requestTable}
+              ${leadTimeStatusBlock}
               <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
                 <p style="margin:0 0 6px;font-weight:700;color:#991b1b;">Final Approver Comment:</p>
                 <p style="margin:0;color:#374151;">${request.finalApprovalComment || 'No comment provided.'}</p>
@@ -162,6 +201,7 @@ function buildEmailTemplate(event, data) {
               <p>Dear <strong>${recipient.name}</strong>,</p>
               <p>Production has started for your MH Request <strong>${request.mhRequestId}</strong>.</p>
               ${requestTable}
+              ${leadTimeStatusBlock}
               ${footer}`
         },
         COMPLETED: {
@@ -170,6 +210,16 @@ function buildEmailTemplate(event, data) {
               <p>Dear <strong>${recipient.name}</strong>,</p>
               <p>🎉 Your MH Request <strong>${request.mhRequestId}</strong> has been successfully completed and implemented.</p>
               ${requestTable}
+              ${footer}`
+        },
+        ESCALATION_REMINDER: {
+            subject: `[TVS-PED] Reminder — Action Pending on ${request.mhRequestId}`,
+            html: `${header('Reminder — Action Pending', 'Lead Time Escalation')}
+              <p>Dear <strong>${recipient.name}</strong>,</p>
+              <p style="color:#475569;">MH Request <strong>${request.mhRequestId}</strong> is currently awaiting your action at the <strong>${recipient.role}</strong> stage and is consuming more lead time than planned. Please review at your earliest convenience.</p>
+              ${requestTable}
+              ${leadTimeStatusBlock}
+              ${portalBtn}
               ${footer}`
         }
     };

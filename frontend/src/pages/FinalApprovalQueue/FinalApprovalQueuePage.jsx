@@ -5,7 +5,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { getWorkflowQueue } from '../../api/workflowApi';
+import LeadTimeChip from '../../components/LeadTimeChip';
 
 export default function FinalApprovalQueuePage() {
     const navigate = useNavigate();
@@ -15,7 +17,10 @@ export default function FinalApprovalQueuePage() {
     useEffect(() => {
         getWorkflowQueue('final')
             .then(r => setItems(r.data.data || []))
-            .catch(console.error)
+            .catch(e => {
+                console.error(e);
+                toast.error('Failed to load final approval queue');
+            })
             .finally(() => setLoading(false));
     }, []);
 
@@ -71,14 +76,7 @@ export default function FinalApprovalQueuePage() {
                                 </div>
                             </div>
 
-                            {req.leadTimeEstimate && (
-                                <div style={{ textAlign: 'center', minWidth: 60 }}>
-                                    <div style={{ fontSize: 18, fontWeight: 800, color: '#16a34a' }}>
-                                        {req.leadTimeEstimate}d
-                                    </div>
-                                    <div style={{ fontSize: 10, color: '#94a3b8' }}>Est. Lead Time</div>
-                                </div>
-                            )}
+                            <LeadTimeChip leadTime={req.leadTime} />
 
                             <div style={{
                                 background: '#f0fdf4', color: '#16a34a',

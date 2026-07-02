@@ -5,7 +5,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { getWorkflowQueue } from '../../api/workflowApi';
+import LeadTimeChip from '../../components/LeadTimeChip';
 
 export default function CheckerQueuePage() {
     const navigate = useNavigate();
@@ -15,7 +17,10 @@ export default function CheckerQueuePage() {
     useEffect(() => {
         getWorkflowQueue('checker')
             .then(r => setItems(r.data.data || []))
-            .catch(console.error)
+            .catch(e => {
+                console.error(e);
+                toast.error('Failed to load checker queue');
+            })
             .finally(() => setLoading(false));
     }, []);
 
@@ -64,6 +69,8 @@ export default function CheckerQueuePage() {
                                     {req.materialHandlingEquipment || '—'} · Submitted by {req.userName}
                                 </div>
                             </div>
+
+                            <LeadTimeChip leadTime={req.leadTime} />
 
                             <div style={{
                                 background: '#ecfeff', color: '#0891b2',

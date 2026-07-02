@@ -17,6 +17,8 @@ dbPromise.then(() => {
     initializeScheduler();
     const { initializeAlertScheduler } = require('./jobs/alertCron');
     initializeAlertScheduler();
+    const { initializeWorkflowEscalationCron } = require('./jobs/workflowEscalationCron');
+    initializeWorkflowEscalationCron();
 }).catch(err => console.error('Database connection failed:', err));
 
 // Middleware

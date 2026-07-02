@@ -5,6 +5,7 @@
  */
 
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import {
     l1Approve, l1Reject,
@@ -14,7 +15,27 @@ import {
     advanceProduction,
     designerReject
 } from '../../api/workflowApi';
-import { CheckCircle2, XCircle, Send, PlayCircle, Loader2, Info } from 'lucide-react';
+import { CheckCircle2, XCircle, Send, PlayCircle, Loader2, Info, AlertTriangle } from 'lucide-react';
+
+// ─── Toast messaging per action — mirrors the enterprise notification copy ────
+const leadTimeSuffix = (lt) => {
+    if (!lt || lt.consumedDays === undefined || lt.consumedDays === null) return '';
+    return ` — ${lt.consumedDays} of ${lt.estimatedDays} days consumed, ${Math.max(lt.remainingDays, 0)} remaining.`;
+};
+
+const SUCCESS_TOASTS = {
+    l1approve:      (lt) => `Designer & Checker Assigned.${leadTimeSuffix(lt)}`,
+    l1reject:       () => 'MH Request Rejected. Requester notified.',
+    submitdesign:   (lt) => `Design Submitted. Checker notified.${leadTimeSuffix(lt)}`,
+    designerreject: () => 'Request Returned to Requester.',
+    checkerapprove: (lt) => `Checker Approved Design. Final Approver notified.${leadTimeSuffix(lt)}`,
+    checkerreject:  () => 'Design Returned for Rework. Designer notified.',
+    finalapprove:   (lt) => `Final Approval Completed. Vendor Selection Started.${leadTimeSuffix(lt)}`,
+    finalreject:    () => 'Final Approval Rejected. Returned to L1 Approver.',
+    advance_IN_PRODUCTION:  (lt) => `Production Started.${leadTimeSuffix(lt)}`,
+    advance_IMPLEMENTATION: (lt) => `Marked as Implementation.${leadTimeSuffix(lt)}`,
+    advance_COMPLETED:      () => 'Workflow Completed Successfully.',
+};
 
 const BTN = {
     approve: { base: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20', icon: CheckCircle2, label: 'Approve' },
@@ -103,14 +124,18 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
     // Design file upload
     const [designFiles, setDesignFiles] = useState([]);
 
-    const exec = async (fn) => {
+    const exec = async (fn, toastKey) => {
         setLoading(true);
         setError('');
         try {
-            await fn();
+            const result = await fn();
+            const buildMessage = SUCCESS_TOASTS[toastKey];
+            toast.success(buildMessage ? buildMessage(result?.leadTime) : 'Action completed successfully.');
             onActionComplete?.();
         } catch (e) {
-            setError(e?.response?.data?.message || e.message);
+            const message = e?.response?.data?.message || e.message;
+            setError(message);
+            toast.error(message);
         } finally {
             setLoading(false);
         }
@@ -275,15 +300,16 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
                     onClose={() => setModal(null)}
                     onConfirm={({ comment }) => exec(async () => {
                         if (!designerId || !checkerId) throw new Error('Designer and Checker assignments are required for L1 Approval');
-                        await l1Approve(requestId, { comment, assignDesignerId: designerId, assignCheckerId: checkerId });
+                        const result = await l1Approve(requestId, { comment, assignDesignerId: designerId, assignCheckerId: checkerId });
                         setModal(null);
-                    })}
+                        return result;
+                    }, 'l1approve')}
                 />
             )}
 
             {modal === 'l1reject' && (
                 <CommentModal title="Reject Request" required={true} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => { await l1Reject(requestId, { comment }); setModal(null); })} />
+                    onConfirm={({ comment }) => exec(async () => { const r = await l1Reject(requestId, { comment }); setModal(null); return r; }, 'l1reject')} />
             )}
 
             {modal === 'submitdesign' && (
@@ -292,43 +318,45 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
                         const fd = new FormData();
                         fd.append('comment', comment);
                         designFiles.forEach(f => fd.append('designDocuments', f));
-                        await submitDesign(requestId, fd);
+                        const result = await submitDesign(requestId, fd);
                         setModal(null); setDesignFiles([]);
-                    })} />
+                        return result;
+                    }, 'submitdesign')} />
             )}
 
             {modal === 'designerreject' && (
                 <CommentModal title="Revert Request" required={true} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => { await designerReject(requestId, { comment }); setModal(null); })} />
+                    onConfirm={({ comment }) => exec(async () => { const r = await designerReject(requestId, { comment }); setModal(null); return r; }, 'designerreject')} />
             )}
 
             {modal === 'checkerapprove' && (
                 <CommentModal title="Verify & Approve Design" required={false} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => { await checkDesign(requestId, { action: 'approve', comment }); setModal(null); })} />
+                    onConfirm={({ comment }) => exec(async () => { const r = await checkDesign(requestId, { action: 'approve', comment }); setModal(null); return r; }, 'checkerapprove')} />
             )}
 
             {modal === 'checkerreject' && (
                 <CommentModal title="Reject Design & Request Revision" required={true} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => { await checkDesign(requestId, { action: 'reject', comment }); setModal(null); })} />
+                    onConfirm={({ comment }) => exec(async () => { const r = await checkDesign(requestId, { action: 'reject', comment }); setModal(null); return r; }, 'checkerreject')} />
             )}
 
             {modal === 'finalapprove' && (
                 <CommentModal title="Final Authorization" required={false} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => { await finalApprove(requestId, { action: 'approve', comment }); setModal(null); })} />
+                    onConfirm={({ comment }) => exec(async () => { const r = await finalApprove(requestId, { action: 'approve', comment }); setModal(null); return r; }, 'finalapprove')} />
             )}
 
             {modal === 'finalreject' && (
                 <CommentModal title="Reject Final Authorization" required={true} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => { await finalApprove(requestId, { action: 'reject', comment }); setModal(null); })} />
+                    onConfirm={({ comment }) => exec(async () => { const r = await finalApprove(requestId, { action: 'reject', comment }); setModal(null); return r; }, 'finalreject')} />
             )}
 
             {modal?.startsWith('advance_') && (
                 <CommentModal title={`Advance to ${modal.replace('advance_', '').replace('_', ' ')}`} required={false} onClose={() => setModal(null)}
                     onConfirm={({ comment }) => exec(async () => {
                         const stage = modal.replace('advance_', '');
-                        await advanceProduction(requestId, { stage, comment });
+                        const result = await advanceProduction(requestId, { stage, comment });
                         setModal(null);
-                    })} />
+                        return result;
+                    }, `advance_${modal.replace('advance_', '')}`)} />
             )}
         </div>
     );

@@ -12,7 +12,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import axios from 'axios';
-import { ChevronLeft, FileText, CheckCircle2, Clock, Activity, LayoutDashboard, Calendar, Users, AlertCircle, FileBarChart, Clock4, Gauge, UserCircle, Briefcase, CalendarDays, ShieldCheck } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { ChevronLeft, FileText, CheckCircle2, Clock, Activity, LayoutDashboard, Calendar, Users, AlertCircle, FileBarChart, Clock4, Gauge, UserCircle, Briefcase, CalendarDays, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 import WorkflowTimeline   from './WorkflowTimeline';
 import LeadTimeInsightCard from './LeadTimeInsightCard';
@@ -75,7 +76,9 @@ export default function WorkflowDetailPage() {
             const empRes = await axios.get(`${BASE_URL}/employees`, { headers: getAuthHeader() });
             setEmployees(empRes.data?.data || []);
         } catch (e) {
-            setError(e?.response?.data?.message || 'Failed to load request details');
+            const message = e?.response?.data?.message || 'Failed to load request details';
+            setError(message);
+            toast.error(message);
         } finally {
             setLoading(false);
         }
@@ -106,22 +109,16 @@ export default function WorkflowDetailPage() {
     if (!request) return null;
 
     const badge = STATE_BADGE[workflow?.workflowState] || { color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200', label: workflow?.workflowState || 'Legacy' };
-    const leadTime = workflow ? {
-        estimatedDays: workflow.leadTime?.estimatedDays,
-        confidence:    workflow.leadTime?.confidence,
-        source:        workflow.leadTime?.source,
-        factors:       workflow.leadTime?.factors || [],
-        recommendation: null,
-        generatedAt:   workflow.leadTime?.generatedAt
-    } : null;
+    const leadTime = workflow?.leadTime || null;
 
     const requestDate = new Date(request.createdAt || Date.now());
-    const leadTimeDays = workflow.leadTime?.estimatedDays || 0;
+    const leadTimeDays = leadTime?.estimatedDays || 0;
     const estimatedCompletion = new Date(requestDate.getTime() + (leadTimeDays * 24 * 60 * 60 * 1000));
-    
-    // Calculate SLA
-    const daysSinceStart = Math.floor((new Date() - requestDate) / (1000 * 60 * 60 * 24));
-    const isSlaBreached = leadTimeDays > 0 && daysSinceStart > leadTimeDays;
+
+    // SLA health — sourced from the backend's computeLeadTimeStatus (single source of truth)
+    const daysSinceStart = leadTime?.consumedDays ?? Math.floor((new Date() - requestDate) / (1000 * 60 * 60 * 24));
+    const isSlaBreached = leadTime?.status === 'OVERDUE';
+    const isAttention = leadTime?.status === 'ATTENTION';
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] font-inter text-slate-800 pb-16">
@@ -151,12 +148,14 @@ export default function WorkflowDetailPage() {
 
                     <div className="flex items-center gap-6 bg-slate-50 border border-slate-100 rounded-xl p-3 pr-6 shadow-inner">
                         <div className="flex items-center gap-3 border-r border-slate-200 pr-6">
-                            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSlaBreached ? 'bg-red-100 text-red-600' : isAttention ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
                                 <ShieldCheck size={20} strokeWidth={2.5} />
                             </div>
                             <div>
                                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Workflow Health</div>
-                                <div className="text-sm font-bold text-emerald-700">On Track</div>
+                                <div className={`text-sm font-bold ${isSlaBreached ? 'text-red-700' : isAttention ? 'text-amber-700' : 'text-emerald-700'}`}>
+                                    {isSlaBreached ? 'Overdue' : isAttention ? 'Attention Required' : 'On Track'}
+                                </div>
                             </div>
                         </div>
                         <div className="flex flex-col">
@@ -167,10 +166,22 @@ export default function WorkflowDetailPage() {
                 </div>
             </div>
 
+            {/* Persistent Overdue/Attention Banner */}
+            {(isSlaBreached || isAttention) && (
+                <div className={`w-full px-4 lg:px-8 pt-6`}>
+                    <div className={`rounded-xl border px-5 py-3 flex items-center gap-3 text-sm font-semibold ${isSlaBreached ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                        <AlertTriangle size={18} className="shrink-0" />
+                        {isSlaBreached
+                            ? `Overdue by ${leadTime.overdueByDays} Day(s) — this request has exceeded its ${leadTime.estimatedDays}-day lead time estimate.`
+                            : `Only ${Math.max(leadTime.remainingDays, 0)} Day(s) Remaining — ${leadTime.percent}% of the ${leadTime.estimatedDays}-day lead time has been consumed.`}
+                    </div>
+                </div>
+            )}
+
             {/* Main Content */}
             <div className="w-full px-4 lg:px-8">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
-                
+
                     {/* Section 2: Premium Workflow Timeline */}
                     <div className="lg:col-span-12 mt-8 bg-white rounded-[18px] shadow-[0_8px_32px_rgba(15,23,42,0.04)] border border-slate-100 p-6 lg:p-8 mb-6 hover:-translate-y-[2px] transition-transform duration-300">
                         <WorkflowTimeline
@@ -187,7 +198,7 @@ export default function WorkflowDetailPage() {
                             { label: 'Lead Time', value: leadTimeDays ? `${leadTimeDays} Days` : 'TBD', icon: Clock4, color: 'text-blue-500', bg: 'bg-blue-50' },
                             { label: 'Confidence', value: leadTime?.confidence ? `${leadTime.confidence}%` : '—', icon: Gauge, color: 'text-purple-500', bg: 'bg-purple-50' },
                             { label: 'Workflow Progress', value: `${Math.round((workflow?.currentStage / 6) * 100)}%`, icon: Activity, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-                            { label: 'Status', value: isSlaBreached ? 'Breached' : 'On Track', icon: ShieldCheck, color: isSlaBreached ? 'text-red-500' : 'text-emerald-500', bg: isSlaBreached ? 'bg-red-50' : 'bg-emerald-50' }
+                            { label: 'Status', value: isSlaBreached ? 'Overdue' : isAttention ? 'Attention' : 'On Track', icon: ShieldCheck, color: isSlaBreached ? 'text-red-500' : isAttention ? 'text-amber-500' : 'text-emerald-500', bg: isSlaBreached ? 'bg-red-50' : isAttention ? 'bg-amber-50' : 'bg-emerald-50' }
                         ].map((kpi, i) => (
                             <div key={i} className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(15,23,42,0.04)] border border-slate-100 p-5 hover:-translate-y-[2px] transition-transform duration-300">
                                 <div className="flex items-center justify-between mb-3">
@@ -323,13 +334,15 @@ export default function WorkflowDetailPage() {
                                     </div>
                                 </div>
                                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className={`h-full ${isSlaBreached ? 'bg-red-500' : 'bg-[#16A34A]'} rounded-full`} style={{ width: `${Math.min((daysSinceStart / Math.max(leadTimeDays, 1)) * 100, 100)}%` }}></div>
+                                    <div className={`h-full ${isSlaBreached ? 'bg-red-500' : isAttention ? 'bg-amber-500' : 'bg-[#16A34A]'} rounded-full`} style={{ width: `${Math.min(leadTime?.percent ?? 0, 100)}%` }}></div>
                                 </div>
                                 <div className="mt-3 flex items-center gap-2 text-xs font-semibold">
                                     {isSlaBreached ? (
-                                        <span className="text-red-600 flex items-center gap-1"><AlertCircle size={12}/> SLA Breached by {daysSinceStart - leadTimeDays} days</span>
+                                        <span className="text-red-600 flex items-center gap-1"><AlertCircle size={12}/> SLA Breached by {leadTime.overdueByDays} days</span>
+                                    ) : isAttention ? (
+                                        <span className="text-amber-600 flex items-center gap-1"><AlertTriangle size={12}/> {leadTime.percent}% consumed — {Math.max(leadTime.remainingDays, 0)} days remaining</span>
                                     ) : (
-                                        <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={12}/> Within SLA ({leadTimeDays - daysSinceStart} days remaining)</span>
+                                        <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={12}/> Within SLA ({leadTime ? Math.max(leadTime.remainingDays, 0) : leadTimeDays} days remaining)</span>
                                     )}
                                 </div>
                             </div>

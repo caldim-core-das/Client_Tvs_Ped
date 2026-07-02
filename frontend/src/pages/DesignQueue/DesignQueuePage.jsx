@@ -6,7 +6,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { getWorkflowQueue } from '../../api/workflowApi';
+import LeadTimeChip from '../../components/LeadTimeChip';
 
 const STATE_COLORS = {
     DESIGN_IN_PROGRESS: { bg: '#f5f3ff', color: '#7c3aed', label: 'In Progress' },
@@ -21,7 +23,10 @@ export default function DesignQueuePage() {
     useEffect(() => {
         getWorkflowQueue('design')
             .then(r => setItems(r.data.data || []))
-            .catch(console.error)
+            .catch(e => {
+                console.error(e);
+                toast.error('Failed to load design queue');
+            })
             .finally(() => setLoading(false));
     }, []);
 
@@ -73,14 +78,7 @@ export default function DesignQueuePage() {
                                     </div>
                                 </div>
 
-                                {req.leadTimeEstimate && (
-                                    <div style={{ textAlign: 'center', minWidth: 60 }}>
-                                        <div style={{ fontSize: 18, fontWeight: 800, color: '#7c3aed' }}>
-                                            {req.leadTimeEstimate}d
-                                        </div>
-                                        <div style={{ fontSize: 10, color: '#94a3b8' }}>Lead Time</div>
-                                    </div>
-                                )}
+                                <LeadTimeChip leadTime={req.leadTime} />
 
                                 <div style={{
                                     background: sc.bg, color: sc.color,
