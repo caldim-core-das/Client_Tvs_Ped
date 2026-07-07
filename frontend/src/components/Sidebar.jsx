@@ -288,16 +288,10 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
                                 cursor: 'pointer',
                             }}
                         >
-                            <img
-                                src={`${import.meta.env.BASE_URL || '/'}tvs_logo_clean.png`}
-                                alt="TVS"
-                                style={{
-                                    width: isSidebarOpen ? 120 : 40,
-                                    height: 'auto',
-                                    objectFit: 'contain',
-                                    display: 'block',
-                                    transition: 'width 0.3s cubic-bezier(0.4,0,0.2,1)',
-                                }}
+                            <Package 
+                                size={isSidebarOpen ? 32 : 24} 
+                                color={theme.accent} 
+                                style={{ transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)' }} 
                             />
                             <AnimatePresence>
                                 {isSidebarOpen && (
@@ -306,8 +300,8 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
                                         animate={{ opacity: 1, height: 'auto', marginTop: 4 }}
                                         exit={{ opacity: 0, height: 0, marginTop: 0 }}
                                         style={{
-                                            fontSize: '8.5px',
-                                            fontWeight: 700,
+                                            fontSize: '11px',
+                                            fontWeight: 800,
                                             color: tc.text80,
                                             textTransform: 'uppercase',
                                             letterSpacing: '0.05em',
@@ -315,7 +309,7 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
                                             whiteSpace: 'nowrap'
                                         }}
                                     >
-                                        Plant Engineering Department
+                                        Asset Management
                                     </motion.span>
                                 )}
                             </AnimatePresence>

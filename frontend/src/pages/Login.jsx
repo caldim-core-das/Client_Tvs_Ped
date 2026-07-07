@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, AlertCircle, ArrowRight, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
 
 // Import TVS & Trolley Assets
 import imgTvsLogo from '../assets/tvslogo.jpg';
-import imgTvs1 from '../assets/tvs1.jpg';
+import imgWarehouse from '../assets/mfg_warehouse.png';
 import imgT1 from '../assets/t1.jpg';
 import imgT2 from '../assets/t2.jpg';
 import imgT3 from '../assets/t3.webp';
@@ -82,13 +82,11 @@ const Login = () => {
                             boxShadow: '0 4px 20px rgba(37, 60, 128, 0.05)'
                         }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <img 
-                                    src={imgTvsLogo} 
-                                    alt="TVS Logo" 
-                                    style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #E2E8F0' }} 
-                                />
+                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC' }}>
+                                    <Package size={20} color="#253C80" />
+                                </div>
                                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                    <span style={{ color: '#1E293B', fontSize: '13.5px', fontWeight: '800', letterSpacing: '0.05em' }}>TVS MOTORS</span>
+                                    <span style={{ color: '#1E293B', fontSize: '13.5px', fontWeight: '800', letterSpacing: '0.05em' }}>ASSET MANAGEMENT</span>
                                     <span style={{ color: '#64748B', fontSize: '10px', fontWeight: '600' }}>MH Asset Management & Performance</span>
                                 </div>
                             </div>
@@ -120,8 +118,8 @@ const Login = () => {
                             boxShadow: '0 20px 40px rgba(37, 60, 128, 0.15)'
                         }}>
                             <img 
-                                src={imgTvs1} 
-                                alt="TVS Portfolio" 
+                                src={imgWarehouse} 
+                                alt="Asset Portfolio" 
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                             />
                             <div style={{
@@ -134,7 +132,7 @@ const Login = () => {
                                 display: 'flex',
                                 flexDirection: 'column'
                             }}>
-                                <span style={{ color: '#93C5FD', fontSize: '12px', fontWeight: '700', letterSpacing: '0.05em', textTransform: 'uppercase' }}>TVS portfolio</span>
+                                <span style={{ color: '#93C5FD', fontSize: '12px', fontWeight: '700', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Asset portfolio</span>
                                 <span style={{ color: '#fff', fontSize: '18px', fontWeight: '700', marginTop: '6px', lineHeight: '1.4' }}>
                                     Scooters, commuters and performance machines in one view
                                 </span>
@@ -247,7 +245,7 @@ const Login = () => {
                                         required
                                         value={email}
                                         onChange={e => setEmail(e.target.value)}
-                                        placeholder="admin@tvs.com"
+                                        placeholder="admin@asset.com"
                                         style={{
                                             width: '100%',
                                             border: 'none',
@@ -384,7 +382,7 @@ const Login = () => {
                             color: '#64748B',
                             fontWeight: '500'
                         }}>
-                            Email:&nbsp;<span style={{ color: '#0F172A', fontWeight: '700' }}>admin@tvs.com</span>&nbsp;&nbsp;&nbsp;Pass:&nbsp;<span style={{ color: '#0F172A', fontWeight: '700' }}>admin123</span>
+                            Email:&nbsp;<span style={{ color: '#0F172A', fontWeight: '700' }}>admin@asset.com</span>&nbsp;&nbsp;&nbsp;Pass:&nbsp;<span style={{ color: '#0F172A', fontWeight: '700' }}>admin123</span>
                         </div>
 
                         {/* ── HEAVY DUTY TROLLEY SHOWCASE ── */}
@@ -405,7 +403,7 @@ const Login = () => {
                                 color: '#64748B',
                                 marginTop: '4px'
                             }}>
-                                Quick view of key trolley variants used across TVS plants.
+                                Quick view of key trolley variants used across plants.
                             </span>
 
                             <div style={{
@@ -505,7 +503,7 @@ const Login = () => {
                             color: '#94A3B8',
                             fontWeight: '500'
                         }}>
-                            © 2026 TVS Group. All rights reserved.
+                            © 2026 Asset Management. All rights reserved.
                         </div>
 
                     </div>

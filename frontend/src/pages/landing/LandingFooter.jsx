@@ -66,7 +66,7 @@ export default function LandingFooter() {
                 fontSize: 16, fontWeight: 800, color: '#0D1B3E',
                 fontFamily: "'Outfit', sans-serif",
               }}>
-                TVS Factory
+                Asset Management
               </span>
             </div>
             <p style={{
@@ -89,7 +89,7 @@ export default function LandingFooter() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <Mail size={13} color="#CBD5E0" />
-              <span style={{ fontSize: 12.5, color: '#94A3B8' }}>support@tvs-factory.internal</span>
+              <span style={{ fontSize: 12.5, color: '#94A3B8' }}>support@asset-management.internal</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Shield size={13} color="#CBD5E0" />

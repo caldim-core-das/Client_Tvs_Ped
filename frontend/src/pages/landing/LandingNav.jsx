@@ -71,7 +71,7 @@ export default function LandingNav() {
               fontSize: 16, fontWeight: 800, color: '#0D1B3E',
               fontFamily: "'Outfit', sans-serif", letterSpacing: '-0.01em',
             }}>
-              TVS
+              Asset Management
             </span>
           </button>
 
