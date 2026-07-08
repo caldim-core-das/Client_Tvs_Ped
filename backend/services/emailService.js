@@ -64,6 +64,12 @@ const sendReportEmail = async (recipients, reportData, htmlContent) => {
             text: `${reportType}\n\nTotal Requests: ${summary.totalRequests}\n\nGenerated at: ${generatedAt}`
         };
 
+        // Add attachments if any were passed
+        // reportData.attachments should be an array of objects: { filename: 'file.xlsx', content: buffer }
+        if (reportData.attachments && Array.isArray(reportData.attachments)) {
+            mailOptions.attachments = reportData.attachments;
+        }
+
         console.log('[Email Service] Sending email from:', mailOptions.from);
         console.log('[Email Service] To:', mailOptions.to);
 

@@ -86,9 +86,33 @@ const getAllTrackers = async (req, res) => {
     try {
         await syncTrackersFromAcceptedRequests();
 
-        const trackers = await MHDevelopmentTracker.find()
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const filter = {};
+        if (req.query.search) {
+            filter.$or = [
+                { assetRequestId: { $regex: req.query.search, $options: 'i' } },
+                { vendorName: { $regex: req.query.search, $options: 'i' } },
+                { departmentName: { $regex: req.query.search, $options: 'i' } },
+                { productModel: { $regex: req.query.search, $options: 'i' } },
+                { userName: { $regex: req.query.search, $options: 'i' } }
+            ];
+        }
+        
+        if (req.query.status && req.query.status !== 'all') {
+            filter.status = req.query.status;
+        }
+
+        const trackers = await MHDevelopmentTracker.find(filter)
             .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
             .lean();
+
+        const total = await MHDevelopmentTracker.countDocuments(filter);
+        const totalPages = Math.ceil(total / limit);
 
         const ProjectPlan = require('../models/ProjectPlan');
         const projectPlans = await ProjectPlan.find().lean();
@@ -114,7 +138,10 @@ const getAllTrackers = async (req, res) => {
         res.status(200).json({
             success: true,
             data: trackers,
-            count: trackers.length
+            count: trackers.length,
+            total,
+            totalPages,
+            currentPage: page
         });
     } catch (error) {
         console.error('Error fetching trackers:', error);

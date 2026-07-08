@@ -13,8 +13,10 @@ export const AuthProvider = ({ children }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    // Configure axios defaults
+    // Configure axios defaults and interceptors
     useEffect(() => {
+        axios.defaults.withCredentials = true; // Required for cookies
+
         if (token) {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
             sessionStorage.setItem('token', token);
@@ -22,6 +24,32 @@ export const AuthProvider = ({ children }) => {
             delete axios.defaults.headers.common['Authorization'];
             sessionStorage.removeItem('token');
         }
+
+        const interceptor = axios.interceptors.response.use(
+            (response) => response,
+            async (error) => {
+                const originalRequest = error.config;
+                // Check for 401 TOKEN_EXPIRED
+                if (error.response?.status === 401 && error.response?.data?.message === 'TOKEN_EXPIRED' && !originalRequest._retry) {
+                    originalRequest._retry = true;
+                    try {
+                        const res = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {}, { withCredentials: true });
+                        const newToken = res.data.token;
+                        setToken(newToken);
+                        originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+                        return axios(originalRequest);
+                    } catch (refreshError) {
+                        logout();
+                        return Promise.reject(refreshError);
+                    }
+                }
+                return Promise.reject(error);
+            }
+        );
+
+        return () => {
+            axios.interceptors.response.eject(interceptor);
+        };
     }, [token]);
 
     // Check if user is logged in on mount
@@ -78,7 +106,10 @@ export const AuthProvider = ({ children }) => {
     const logout = async () => {
         try {
             if (sessionId) {
-                await axios.post(`${API_BASE_URL}/api/auth/logout`, { sessionId });
+                // don't retry on logout failure
+                await axios.post(`${API_BASE_URL}/api/auth/logout`, { sessionId }, { _retry: true });
+            } else {
+                await axios.post(`${API_BASE_URL}/api/auth/logout`, {}, { _retry: true });
             }
         } catch (error) {
             console.error('Logout error', error);

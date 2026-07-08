@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import KPISettingsSection from './KPISettingsSection';
+import NotificationLogSection from './NotificationLogSection';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -678,6 +679,9 @@ const Settings = () => {
 
             {/* ─── KPI Settings Section ─────────────────────────────────────── */}
             <KPISettingsSection />
+
+            {/* ─── Notification Log Section (Admin Only) ────────────────────── */}
+            <NotificationLogSection />
         </div>
     );
 };

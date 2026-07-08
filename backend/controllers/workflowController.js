@@ -23,6 +23,12 @@ const { sendWorkflowNotification }            = require('../services/workflowNot
 const { estimateLeadTime }                    = require('../services/leadTimeService');
 const { sendRequesterStatusEmail }            = require('./emailController');
 const { computeLeadTimeStatus }               = require('../utils/leadTimeStatus');
+const { secureUploadMultiple }                = require('../middleware/secureUploadMiddleware');
+const mongoose                                = require('mongoose');
+
+function buildRequestQuery(id) {
+    return mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { mhRequestId: id };
+}
 
 // ─── Helper: build the full leadTime payload (estimate + consumed/remaining/status) ──
 function buildLeadTimePayload(request) {
@@ -41,19 +47,7 @@ function buildLeadTimePayload(request) {
     };
 }
 
-// ─── Multer config for design documents ──────────────────────────────────────
-const designStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const dir = 'uploads/DesignDocuments/';
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-        const suffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, suffix + path.extname(file.originalname));
-    }
-});
-const designUpload = multer({ storage: designStorage });
+// ─── secureUploadMultiple is used for design documents instead of raw multer ────
 
 // ─── Helper: build actor metadata from req.user ───────────────────────────────
 function buildActor(user) {
@@ -81,7 +75,7 @@ function buildHistoryEntry({ stage, state, action, user, comment = '', metadata 
 
 // ─── GET /api/workflow/:requestId/state ──────────────────────────────────────
 const getWorkflowState = asyncHandler(async (req, res) => {
-    const request = await MHRequest.findById(req.params.requestId)
+    const request = await MHRequest.findOne(buildRequestQuery(req.params.requestId))
         .populate('assignedDesigner assignedChecker assignedFinalApprover', 'employeeName mailId employeeId')
         .populate('user', 'email role')
         .lean();
@@ -137,6 +131,9 @@ const getWorkflowQueue = asyncHandler(async (req, res) => {
         case 'production':
             query.workflowState = { $in: ['FINAL_APPROVED', 'IN_PRODUCTION', 'IMPLEMENTATION'] };
             break;
+        case 'my-requests':
+            query.user = userId; // Requests created by the logged in user
+            break;
         default:
             return res.status(400).json({ message: 'Invalid queue type' });
     }
@@ -161,7 +158,7 @@ const l1Approve = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: 'Designer and Checker must be assigned on L1 Approval' });
     }
 
-    const request = await MHRequest.findById(req.params.requestId);
+    const request = await MHRequest.findOne(buildRequestQuery(req.params.requestId));
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
     if (!isValidTransition(request.workflowState, 'L1_APPROVED')) {
@@ -254,7 +251,7 @@ const l1Reject = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: 'Rejection comment must be at least 10 characters' });
     }
 
-    const request = await MHRequest.findById(req.params.requestId);
+    const request = await MHRequest.findOne(buildRequestQuery(req.params.requestId));
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
     if (!isValidTransition(request.workflowState, 'L1_REJECTED')) {
@@ -321,7 +318,7 @@ const designerReject = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: 'Rejection comment must be at least 5 characters' });
     }
 
-    const request = await MHRequest.findById(req.params.requestId);
+    const request = await MHRequest.findOne(buildRequestQuery(req.params.requestId));
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
     if (!isValidTransition(request.workflowState, 'REVERTED')) {
@@ -371,11 +368,11 @@ const designerReject = asyncHandler(async (req, res) => {
 
 // ─── POST /api/workflow/:requestId/submit-design ──────────────────────────────
 const submitDesign = [
-    designUpload.array('designDocuments', 10),
+    secureUploadMultiple('designDocuments', 10),
     asyncHandler(async (req, res) => {
         const { comment = '' } = req.body;
 
-        const request = await MHRequest.findById(req.params.requestId);
+        const request = await MHRequest.findOne(buildRequestQuery(req.params.requestId));
         if (!request) return res.status(404).json({ message: 'Request not found' });
 
         if (!isValidTransition(request.workflowState, 'DESIGN_SUBMITTED')) {
@@ -446,7 +443,7 @@ const checkDesign = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: 'Rejection comment required (min 10 characters)' });
     }
 
-    const request = await MHRequest.findById(req.params.requestId);
+    const request = await MHRequest.findOne(buildRequestQuery(req.params.requestId));
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
     const targetState = action === 'approve' ? 'DESIGN_APPROVED' : 'DESIGN_REJECTED';
@@ -538,7 +535,7 @@ const finalApprove = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: 'Rejection comment required (min 10 characters)' });
     }
 
-    const request = await MHRequest.findById(req.params.requestId);
+    const request = await MHRequest.findOne(buildRequestQuery(req.params.requestId));
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
     const targetState = action === 'approve' ? 'FINAL_APPROVED' : 'FINAL_REJECTED';
@@ -611,7 +608,7 @@ const advanceProduction = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: `Invalid stage. Must be one of: ${validStages.join(', ')}` });
     }
 
-    const request = await MHRequest.findById(req.params.requestId);
+    const request = await MHRequest.findOne(buildRequestQuery(req.params.requestId));
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
     if (!isValidTransition(request.workflowState, stage)) {
@@ -669,7 +666,7 @@ const advanceProduction = asyncHandler(async (req, res) => {
 
 // ─── GET /api/workflow/lead-time/estimate/:requestId ─────────────────────────
 const getLeadTimeEstimate = asyncHandler(async (req, res) => {
-    const request = await MHRequest.findById(req.params.requestId).lean();
+    const request = await MHRequest.findOne(buildRequestQuery(req.params.requestId)).lean();
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
     // Return cached if already calculated
@@ -701,6 +698,16 @@ const getLeadTimeEstimate = asyncHandler(async (req, res) => {
     res.json({ cached: false, ...estimate });
 });
 
+// ─── GET /api/workflow/notifications ─────────────────────────────────────────
+const getNotificationLogs = asyncHandler(async (req, res) => {
+    const WorkflowNotificationLog = require('../models/WorkflowNotificationLog');
+    const logs = await WorkflowNotificationLog.find({})
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .lean();
+    res.json({ count: logs.length, data: logs });
+});
+
 module.exports = {
     getWorkflowState,
     getWorkflowQueue,
@@ -711,5 +718,6 @@ module.exports = {
     finalApprove,
     advanceProduction,
     getLeadTimeEstimate,
-    designerReject
+    designerReject,
+    getNotificationLogs
 };

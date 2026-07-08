@@ -20,7 +20,7 @@ const VendorMaster = () => {
     const navigate = useNavigate();
     const fileInputRef = useRef();
 
-    const { items: vendors, loading, error } = useSelector((state) => state.vendors);
+    const { items: vendors, total, totalPages, loading, error } = useSelector((state) => state.vendors);
 
     const [editingVendor, setEditingVendor] = useState(null);
     const [viewingVendor, setViewingVendor] = useState(null);
@@ -40,9 +40,22 @@ const VendorMaster = () => {
     const [isErrorModalVisible, setIsErrorModalVisible] = useState(false);
     const gridContainerRef = useRef(null);
 
+    const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [currentPage, setCurrentPage] = React.useState(1);
+    const [pageSize, setPageSize] = React.useState(50);
+
     useEffect(() => {
-        dispatch(fetchVendors());
-    }, [dispatch]);
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+            setCurrentPage(1);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        dispatch(fetchVendors({ page: currentPage, limit: pageSize, search: debouncedSearch }));
+    }, [dispatch, currentPage, pageSize, debouncedSearch]);
 
     useEffect(() => {
         if (error) {
@@ -200,39 +213,9 @@ const VendorMaster = () => {
         toast.success('Template downloaded successfully');
     };
 
-    const filteredVendors = vendors || [];
-
-    useEffect(() => {
-        if (!gridContainerRef.current) return;
-
-        const updateWidth = () => {
-            if (gridContainerRef.current) {
-                setGridWidth(gridContainerRef.current.clientWidth);
-            }
-        };
-
-        updateWidth();
-
-        const observer = new ResizeObserver(updateWidth);
-        observer.observe(gridContainerRef.current);
-
-        return () => {
-            observer.disconnect();
-        };
-    }, []);
-
-    const applyColumnFilters = (rows) => {
-        if (!columnFilters || Object.keys(columnFilters).length === 0) return rows;
-
-        return rows.filter(row =>
-            Object.entries(columnFilters).every(([key, values]) => {
-                if (!values || values.length === 0) return true;
-                const value = row[key];
-                const str = value == null ? '' : String(value);
-                return values.includes(str);
-            })
-        );
-    };
+    const paginatedRows = React.useMemo(() => {
+        return (vendors || []).map((row, i) => ({ ...row, _serialNo: (currentPage - 1) * pageSize + i + 1 }));
+    }, [vendors, currentPage, pageSize]);
 
     const PlainHeaderCell = ({ column }) => (
         <div className="h-full w-full flex items-center px-4 text-white">
@@ -361,13 +344,7 @@ const VendorMaster = () => {
 
 
 
-    const gridRows = applyColumnFilters(filteredVendors).map((row, i) => ({ ...row, _serialNo: i + 1 }));
-    const [currentPage, setCurrentPage] = React.useState(1);
-    const [pageSize, setPageSize] = React.useState(50);
-    const paginatedRows = React.useMemo(() => {
-        const start = (currentPage - 1) * pageSize;
-        return gridRows.slice(start, start + pageSize);
-    }, [gridRows, currentPage, pageSize]);
+    const gridRows = vendors || [];
 
     const dataGridColumns = [
         {
@@ -384,7 +361,7 @@ const VendorMaster = () => {
             key: 'vendorCode',
             name: 'VENDOR CODE',
             width: 160,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className="font-semibold text-gray-900">{row.vendorCode}</span>
             )
@@ -393,7 +370,7 @@ const VendorMaster = () => {
             key: 'vendorName',
             name: 'VENDOR NAME',
             width: 220,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className="font-semibold text-gray-900">{row.vendorName}</span>
             )
@@ -402,7 +379,7 @@ const VendorMaster = () => {
             key: 'GSTIN',
             name: 'GSTIN',
             width: 200,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className="font-mono font-semibold">
                     {row.GSTIN ? row.GSTIN.toUpperCase() : ''}
@@ -413,13 +390,13 @@ const VendorMaster = () => {
             key: 'vendorLocation',
             name: 'LOCATION',
             width: 180,
-            renderHeaderCell: FilterHeaderCell
+            renderHeaderCell: PlainHeaderCell
         },
         {
             key: 'vendorMailId',
             name: 'EMAIL',
             width: 240,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <a
                     href={`mailto:${row.vendorMailId}`}
@@ -433,7 +410,7 @@ const VendorMaster = () => {
             key: 'remarks',
             name: 'REMARKS',
             width: 260,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className="text-gray-500 italic">
                     {row.remarks || 'No remarks'}
@@ -533,10 +510,17 @@ const VendorMaster = () => {
                             }}>
                                 <Building size={13} style={{ color: '#2563eb', flexShrink: 0 }} />
                                 <span style={{ fontSize: 13, fontWeight: 700, color: '#1e40af' }}>
-                                    {filteredVendors?.length || 0}
+                                    {total || 0}
                                     <span style={{ fontWeight: 500, color: '#3b82f6', marginLeft: 4 }}>vendors</span>
                                 </span>
                             </div>
+                            <input
+                                type="text"
+                                placeholder="Search vendors..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all w-48"
+                            />
                             <ColumnCustomizer
                                 columns={dataGridColumns}
                                 hiddenKeys={hiddenKeys}
@@ -606,7 +590,7 @@ const VendorMaster = () => {
                         {/* Pagination Controls */}
                         <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-200 shrink-0">
                             <div className="text-[11px] font-semibold text-gray-500">
-                                Showing {gridRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, gridRows.length)} of {gridRows.length} entries
+                                Showing {total === 0 ? 0 : (currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, total)} of {total} entries
                             </div>
                             <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-2">
@@ -632,11 +616,11 @@ const VendorMaster = () => {
                                         Prev
                                     </button>
                                     <span className="text-[11px] font-bold text-gray-600 px-2 min-w-[70px] text-center">
-                                        Page {currentPage} / {Math.max(1, Math.ceil(gridRows.length / pageSize))}
+                                        Page {currentPage} / {totalPages || 1}
                                     </span>
                                     <button 
-                                        onClick={() => setCurrentPage(p => Math.min(Math.ceil(gridRows.length / pageSize), p + 1))}
-                                        disabled={currentPage >= Math.ceil(gridRows.length / pageSize) || gridRows.length === 0}
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage >= totalPages || total === 0}
                                         className="px-3 py-1 border border-gray-300 rounded text-[11px] font-bold text-gray-700 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
                                     >
                                         Next
@@ -653,15 +637,15 @@ const VendorMaster = () => {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-[12px]">
                             <span className="text-gray-400 font-medium">Showing</span>
-                            <span className="px-2 py-0.5 rounded-lg font-black text-[#CC1F1F] bg-[#CC1F1F]/10 tabular-nums">{filteredVendors?.length || 0}</span>
+                            <span className="px-2 py-0.5 rounded-lg font-black text-[#CC1F1F] bg-[#CC1F1F]/10 tabular-nums">{total || 0}</span>
                             <span className="text-gray-400 font-medium">of</span>
-                            <span className="px-2 py-0.5 rounded-lg font-black text-gray-700 bg-gray-100 tabular-nums">{vendors?.length || 0}</span>
+                            <span className="px-2 py-0.5 rounded-lg font-black text-gray-700 bg-gray-100 tabular-nums">{total || 0}</span>
                             <span className="text-gray-400 font-medium">vendors</span>
                         </div>
                         <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[11px] font-bold"
                             style={{ background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' }}>
                             <Building size={13} className="shrink-0" />
-                            {vendors?.length || 0} total vendors
+                            {total || 0} total vendors
                         </div>
                     </div>
                 </div>
