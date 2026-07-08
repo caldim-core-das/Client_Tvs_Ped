@@ -13,7 +13,8 @@ const {
     finalApprove,
     advanceProduction,
     getLeadTimeEstimate,
-    designerReject
+    designerReject,
+    getNotificationLogs
 } = require('../controllers/workflowController');
 
 // All routes require JWT auth
@@ -24,8 +25,11 @@ router.use(protect);
 // GET /api/workflow/:requestId/state  — full workflow state for a request
 router.get('/:requestId/state', getWorkflowState);
 
-// GET /api/workflow/queue/:queueType  — l1, design, checker, final, production
+// GET /api/workflow/queue/:queueType  — l1, design, checker, final, production, my-requests
 router.get('/queue/:queueType', getWorkflowQueue);
+
+// GET /api/workflow/notifications — Admin only notification log
+router.get('/notifications', requireWorkflowRole('Admin'), getNotificationLogs);
 
 // GET /api/workflow/lead-time/estimate/:requestId
 router.get('/lead-time/estimate/:requestId', getLeadTimeEstimate);

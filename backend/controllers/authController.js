@@ -5,6 +5,20 @@ const User = require('../models/UserModel');
 const Employee = require('../models/EmployeeModel');
 const UserActivity = require('../models/UserActivity');
 
+// Generate JWT (Access Token - 15 minutes)
+const generateToken = (id) => {
+    return jwt.sign({ id }, process.env.JWT_SECRET || 'tvs_secret_key_123', {
+        expiresIn: '15m',
+    });
+};
+
+// Generate Refresh Token (7 days)
+const generateRefreshToken = (id) => {
+    return jwt.sign({ id }, process.env.JWT_REFRESH_SECRET || 'tvs_refresh_secret_key_123', {
+        expiresIn: '7d',
+    });
+};
+
 // @desc    Authenticate user & get token
 // @route   POST /api/auth/login
 // @access  Public
@@ -17,12 +31,7 @@ const loginUser = asyncHandler(async (req, res) => {
     if (user && (await bcrypt.compare(password, user.passwordHash))) {
         // Track Login Activity
         const now = new Date();
-
-        if (user.lastLoginAt) {
-            user.previousLoginAt = user.lastLoginAt;
-        }
-        user.lastLoginAt = now;
-        await user.save();
+        const previousLoginAt = user.lastLoginAt ? user.lastLoginAt : user.previousLoginAt;
 
         const closePreviousSessionsPromise = UserActivity.find({
             userId: user._id,
@@ -40,10 +49,32 @@ const loginUser = asyncHandler(async (req, res) => {
             console.error('Error closing previous user sessions', err);
         });
 
-        const userActivity = await UserActivity.create({
-            userId: user._id,
-            loginAt: now,
-            userAgent: req.headers['user-agent']
+        let userActivityId = null;
+        try {
+            const userActivity = await UserActivity.create({
+                userId: user._id,
+                loginAt: now,
+                userAgent: req.headers['user-agent']
+            });
+            userActivityId = userActivity._id;
+        } catch (err) {
+            console.error('UserActivity creation failed', err);
+        }
+
+        const accessToken = generateToken(user._id);
+        const refreshToken = generateRefreshToken(user._id);
+        
+        await User.findByIdAndUpdate(user._id, {
+            lastLoginAt: now,
+            previousLoginAt: previousLoginAt,
+            refreshToken: refreshToken
+        });
+
+        res.cookie('jwt_refresh', refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
 
         res.json({
@@ -56,10 +87,10 @@ const loginUser = asyncHandler(async (req, res) => {
             name: user.employeeId ? user.employeeId.employeeName : 'Admin User',
             department: user.employeeId ? user.employeeId.departmentName : 'System',
             location: user.employeeId ? user.employeeId.plantLocation : '',
-            token: generateToken(user._id),
-            sessionId: userActivity._id,
-            lastLoginAt: user.lastLoginAt,
-            previousLoginAt: user.previousLoginAt
+            token: accessToken,
+            sessionId: userActivityId,
+            lastLoginAt: now,
+            previousLoginAt: previousLoginAt
         });
 
         closePreviousSessionsPromise.catch(() => { });
@@ -85,6 +116,11 @@ const logoutUser = asyncHandler(async (req, res) => {
             await activity.save();
         }
     }
+
+    res.cookie('jwt_refresh', '', {
+        httpOnly: true,
+        expires: new Date(0)
+    });
 
     res.status(200).json({ message: 'Logged out successfully' });
 });
@@ -178,12 +214,7 @@ const getMe = asyncHandler(async (req, res) => {
     }
 });
 
-// Generate JWT
-const generateToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET || 'tvs_secret_key_123', {
-        expiresIn: '30d',
-    });
-};
+
 
 // @desc    Seed database (Auto-fix for empty DB)
 // @route   GET /api/auth/seed
@@ -250,10 +281,38 @@ const seedDatabase = asyncHandler(async (req, res) => {
     res.status(201).json({ message: 'Database seeded successfully. You can now login with admin@tvs.com / admin123' });
 });
 
+// @desc    Refresh access token
+// @route   POST /api/auth/refresh
+// @access  Public
+const refreshAccessToken = asyncHandler(async (req, res) => {
+    const token = req.cookies.jwt_refresh;
+    if (!token) {
+        res.status(401);
+        throw new Error('Not authorized, no refresh token');
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET || 'tvs_refresh_secret_key_123');
+        const user = await User.findById(decoded.id);
+
+        if (!user || user.refreshToken !== token) {
+            res.status(401);
+            throw new Error('Not authorized, invalid refresh token');
+        }
+
+        const accessToken = generateToken(user._id);
+        res.json({ token: accessToken });
+    } catch (error) {
+        res.status(401);
+        throw new Error('Not authorized, refresh token failed');
+    }
+});
+
 module.exports = {
     loginUser,
     registerUser,
     getMe,
     logoutUser,
-    seedDatabase
+    seedDatabase,
+    refreshAccessToken
 };

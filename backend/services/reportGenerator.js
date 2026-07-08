@@ -1,5 +1,5 @@
 const MHRequest = require('../models/MHRequest');
-
+const ExcelJS = require('exceljs');
 /**
  * Report Generator Service
  * Generates reports based on report type and filters
@@ -150,7 +150,63 @@ const formatReportAsHTML = (reportData) => {
     return html;
 };
 
+/**
+ * Generate Excel attachment for the report
+ * @param {Object} reportData - Report data from generateReport
+ * @returns {Promise<Buffer>} Excel file buffer
+ */
+const generateExcelAttachment = async (reportData) => {
+    const { reportType, description, generatedAt, data } = reportData;
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'TVS MH Request Management System';
+    workbook.lastModifiedBy = 'System';
+    workbook.created = generatedAt;
+    workbook.modified = generatedAt;
+
+    const worksheet = workbook.addWorksheet('Report Data');
+
+    // Define columns
+    worksheet.columns = [
+        { header: 'MH Request ID', key: 'mhRequestId', width: 20 },
+        { header: 'User', key: 'userName', width: 25 },
+        { header: 'Department', key: 'departmentName', width: 25 },
+        { header: 'Part / Equipment', key: 'handlingPartName', width: 30 },
+        { header: 'Overall Status', key: 'status', width: 15 },
+        { header: 'Progress State', key: 'progressStatus', width: 20 },
+        { header: 'Workflow State (v2)', key: 'workflowState', width: 25 },
+        { header: 'Created Date', key: 'createdAt', width: 20 }
+    ];
+
+    // Style the header row
+    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    worksheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF1A2B5E' } // Matches the email header color
+    };
+
+    // Add rows
+    data.forEach(req => {
+        worksheet.addRow({
+            mhRequestId: req.mhRequestId,
+            userName: req.userName,
+            departmentName: req.departmentName,
+            handlingPartName: req.handlingPartName || req.materialHandlingEquipment || 'N/A',
+            status: req.status,
+            progressStatus: req.progressStatus,
+            workflowState: req.workflowState || 'Legacy',
+            createdAt: new Date(req.createdAt).toLocaleDateString()
+        });
+    });
+
+    // Write to buffer
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer;
+};
+
 module.exports = {
     generateReport,
-    formatReportAsHTML
+    formatReportAsHTML,
+    generateExcelAttachment
 };

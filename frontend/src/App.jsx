@@ -45,6 +45,7 @@ import CheckerQueuePage       from './pages/CheckerQueue/CheckerQueuePage';
 import FinalApprovalQueuePage from './pages/FinalApprovalQueue/FinalApprovalQueuePage';
 import L1ApprovalQueuePage    from './pages/L1ApprovalQueue/L1ApprovalQueuePage';
 import DesignLibraryPage      from './pages/DesignLibrary/DesignLibraryPage';
+import MyRequestsPage         from './pages/MyRequests/MyRequestsPage';
 
 // ── Estimation UI Feature ───────────────────────────────────────────────────────
 import EstimationLayout from './components/EstimationLayout';
@@ -114,6 +115,13 @@ function App() {
             <Route path="request-tracker" element={
               <ProtectedRoute permission="requestTracker">
                 <RequestTracker />
+              </ProtectedRoute>
+            } />
+
+            {/* My Requests Tracker (Employee View) */}
+            <Route path="my-requests" element={
+              <ProtectedRoute>
+                <MyRequestsPage />
               </ProtectedRoute>
             } />
 

@@ -121,7 +121,7 @@ const computeDerivedTrackerFields = (tracker) => {
 
 const MHDevelopmentTracker = () => {
     const dispatch = useDispatch();
-    const { trackers, loading, error, success } = useSelector(state => state.mhDevelopmentTracker);
+    const { trackers, total, totalPages, loading, error, success } = useSelector(state => state.mhDevelopmentTracker);
     const { items: mhRequests, loading: requestsLoading } = useSelector(state => state.assetRequests);
     const [form] = Form.useForm();
 
@@ -144,10 +144,23 @@ const MHDevelopmentTracker = () => {
     const [rowHeight, setRowHeight] = useState(44);
     const [headerRowHeight, setHeaderRowHeight] = useState(52);
 
+    const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [currentPage, setCurrentPage] = React.useState(1);
+    const [pageSize, setPageSize] = React.useState(50);
+
     useEffect(() => {
-        dispatch(fetchTrackers());
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+            setCurrentPage(1);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        dispatch(fetchTrackers({ page: currentPage, limit: pageSize, search: debouncedSearch }));
         dispatch(fetchAssetRequests());
-    }, [dispatch]);
+    }, [dispatch, currentPage, pageSize, debouncedSearch]);
 
     useEffect(() => {
         if (error) {
@@ -435,7 +448,7 @@ const MHDevelopmentTracker = () => {
             key: 'departmentName',
             name: 'DEPARTMENT NAME',
             width: 200,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => <span className="text-xs text-gray-700">{row.departmentName || '-'}</span>
         },
         // 3. Username
@@ -443,7 +456,7 @@ const MHDevelopmentTracker = () => {
             key: 'userName',
             name: 'USERNAME',
             width: 160,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => <span className="text-xs text-gray-700">{row.userName || '-'}</span>
         },
         // 4. Asset Request ID
@@ -451,7 +464,7 @@ const MHDevelopmentTracker = () => {
             key: 'assetRequestId',
             name: 'ASSET REQUEST ID',
             width: 190,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className="font-semibold text-gray-900">{row.assetRequestId || '-'}</span>
             )
@@ -461,7 +474,7 @@ const MHDevelopmentTracker = () => {
             key: 'requestType',
             name: 'REQUEST TYPE',
             width: 175,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => <span className="text-xs text-gray-700">{row.requestType || '-'}</span>
         },
         // 6. Product Model
@@ -469,7 +482,7 @@ const MHDevelopmentTracker = () => {
             key: 'productModel',
             name: 'PRODUCT MODEL',
             width: 175,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => <span className="text-xs text-gray-700">{row.productModel || '-'}</span>
         },
         // 7. Material Handling Equipment
@@ -477,7 +490,7 @@ const MHDevelopmentTracker = () => {
             key: 'materialHandlingEquipment',
             name: 'MATERIAL HANDLING EQUIPMENT',
             width: 220,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className="text-xs text-gray-700">{row.materialHandlingEquipment || '-'}</span>
             )
@@ -487,7 +500,7 @@ const MHDevelopmentTracker = () => {
             key: 'plantLocation',
             name: 'PLANT LOCATION',
             width: 175,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => <span className="text-xs text-gray-700">{row.plantLocation || '-'}</span>
         },
         // 9. Vendor Selection
@@ -547,7 +560,7 @@ const MHDevelopmentTracker = () => {
             key: 'implementationTarget',
             name: 'IMPLEMENTATION TARGET',
             width: 210,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className="text-xs text-gray-700">
                     {row.implementationTarget ? dayjs(row.implementationTarget).format('DD-MMM-YYYY') : '-'}
@@ -559,7 +572,7 @@ const MHDevelopmentTracker = () => {
             key: 'maxDelayDays',
             name: 'DELAY (DAYS)',
             width: 140,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => {
                 const delay = row.maxDelayDays;
                 if (delay === null || delay === undefined) {
@@ -584,7 +597,7 @@ const MHDevelopmentTracker = () => {
             key: 'status',
             name: 'STATUS',
             width: 145,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${getStatusColor(row.status)}`}>
                     {row.status}
@@ -596,7 +609,7 @@ const MHDevelopmentTracker = () => {
             key: 'implementationVisibility',
             name: 'IMPLEMENTATION VISIBILITY',
             width: 225,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => {
                 const val = row.implementationVisibility;
                 if (!val) return <span className="text-[10px] text-gray-400">-</span>;
@@ -618,7 +631,7 @@ const MHDevelopmentTracker = () => {
             key: 'currentStage',
             name: 'CURRENT STAGE',
             width: 185,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${getStageColor(row.currentStage)}`}>
                     {row.currentStage || '-'}
@@ -630,7 +643,7 @@ const MHDevelopmentTracker = () => {
             key: 'remarks',
             name: 'REMARKS',
             width: 220,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className="text-xs text-gray-500 truncate">{row.remarks || '-'}</span>
             )
@@ -702,12 +715,9 @@ const MHDevelopmentTracker = () => {
         requestsLoading,
     ]);
 
-    const gridRows = applyColumnFilters(filteredTrackers).map((row, i) => ({ ...row, _serialNo: i + 1 }));
-    const [currentPage, setCurrentPage] = React.useState(1);
-    const [pageSize, setPageSize] = React.useState(50);
+    const gridRows = filteredTrackers || [];
     const paginatedRows = React.useMemo(() => {
-        const start = (currentPage - 1) * pageSize;
-        return gridRows.slice(start, start + pageSize);
+        return gridRows.map((row, i) => ({ ...row, _serialNo: (currentPage - 1) * pageSize + i + 1 }));
     }, [gridRows, currentPage, pageSize]);
 
     const freezeColumnList = dataGridColumns
@@ -775,10 +785,18 @@ const MHDevelopmentTracker = () => {
                     }}>
                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#a855f7', display: 'inline-block' }} />
                         <span style={{ fontSize: 13, fontWeight: 700, color: '#6b21a8' }}>
-                            {gridRows.length}
+                            {total || 0}
                             <span style={{ fontWeight: 500, color: '#9333ea', marginLeft: 4 }}>trackers</span>
                         </span>
                     </div>
+
+                    <input
+                        type="text"
+                        placeholder="Search trackers..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all w-48"
+                    />
 
                     {/* Customize Columns */}
                     <ColumnCustomizer
@@ -818,10 +836,9 @@ const MHDevelopmentTracker = () => {
                             loading={loading}
                         />
                     
-                        {/* Pagination Controls */}
                         <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-200 shrink-0">
                             <div className="text-[11px] font-semibold text-gray-500">
-                                Showing {gridRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, gridRows.length)} of {gridRows.length} entries
+                                Showing {total === 0 ? 0 : (currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, total)} of {total} entries
                             </div>
                             <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-2">
@@ -847,11 +864,11 @@ const MHDevelopmentTracker = () => {
                                         Prev
                                     </button>
                                     <span className="text-[11px] font-bold text-gray-600 px-2 min-w-[70px] text-center">
-                                        Page {currentPage} / {Math.max(1, Math.ceil(gridRows.length / pageSize))}
+                                        Page {currentPage} / {totalPages || 1}
                                     </span>
                                     <button 
-                                        onClick={() => setCurrentPage(p => Math.min(Math.ceil(gridRows.length / pageSize), p + 1))}
-                                        disabled={currentPage >= Math.ceil(gridRows.length / pageSize) || gridRows.length === 0}
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage >= totalPages || total === 0}
                                         className="px-3 py-1 border border-gray-300 rounded text-[11px] font-bold text-gray-700 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
                                     >
                                         Next

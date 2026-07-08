@@ -99,6 +99,10 @@ const userSchema = mongoose.Schema({
     },
     previousLoginAt: {
         type: Date
+    },
+    refreshToken: {
+        type: String,
+        default: null
     }
 }, {
     timestamps: true

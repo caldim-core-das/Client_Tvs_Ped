@@ -66,7 +66,7 @@ const EmployeeMaster = () => {
     };
 
     // Redux State
-    const { items: employees, loading, error } = useSelector((state) => state.employees);
+    const { items: employees, total, totalPages, loading, error } = useSelector((state) => state.employees);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
@@ -91,9 +91,19 @@ const EmployeeMaster = () => {
     const gridContainerRef = useRef(null);
 
 
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+
     useEffect(() => {
-        dispatch(fetchEmployees());
-    }, [dispatch]);
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+            setCurrentPage(1); // Reset page on search
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        dispatch(fetchEmployees({ page: currentPage, limit: pageSize, search: debouncedSearch }));
+    }, [dispatch, currentPage, pageSize, debouncedSearch]);
 
     useEffect(() => {
         if (error) {
@@ -146,7 +156,7 @@ const EmployeeMaster = () => {
     };
 
     const handleRefresh = () => {
-        dispatch(fetchEmployees());
+        dispatch(fetchEmployees({ page: currentPage, limit: pageSize, search: debouncedSearch }));
         toast.success('Refreshing data...');
     };
 
@@ -293,32 +303,12 @@ const EmployeeMaster = () => {
         toast.success('Template downloaded successfully');
     };
 
-    const filteredEmployees = (employees || []).filter(emp => {
-        const matchesSearch =
-            String(emp.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            String(emp.employeeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            String(emp.departmentName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            String(emp.mailId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            String(emp.plantLocation || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const [currentPage, setCurrentPage] = React.useState(1);
+    const [pageSize, setPageSize] = React.useState(50);
 
-        const matchesStatus = statusFilter === 'all' || emp.status === statusFilter;
-        const matchesAccess = accessFilter === 'all' || emp.accessLevel === accessFilter;
-
-        return matchesSearch && matchesStatus && matchesAccess;
-    });
-
-    const applyColumnFilters = (rows) => {
-        if (!columnFilters || Object.keys(columnFilters).length === 0) return rows;
-
-        return rows.filter(row =>
-            Object.entries(columnFilters).every(([key, values]) => {
-                if (!values || values.length === 0) return true;
-                const value = row[key];
-                const str = value == null ? '' : String(value);
-                return values.includes(str);
-            })
-        );
-    };
+    const paginatedRows = React.useMemo(() => {
+        return (employees || []).map((row, i) => ({ ...row, _serialNo: (currentPage - 1) * pageSize + i + 1 }));
+    }, [employees, currentPage, pageSize]);
 
     const PlainHeaderCell = ({ column }) => (
         <div className="h-full w-full flex items-center px-4 text-white">
@@ -447,13 +437,7 @@ const EmployeeMaster = () => {
 
 
 
-    const gridRows = applyColumnFilters(filteredEmployees).map((row, i) => ({ ...row, _serialNo: i + 1 }));
-    const [currentPage, setCurrentPage] = React.useState(1);
-    const [pageSize, setPageSize] = React.useState(50);
-    const paginatedRows = React.useMemo(() => {
-        const start = (currentPage - 1) * pageSize;
-        return gridRows.slice(start, start + pageSize);
-    }, [gridRows, currentPage, pageSize]);
+    const gridRows = employees || [];
 
     const dataGridColumns = [
         {
@@ -470,7 +454,7 @@ const EmployeeMaster = () => {
             key: 'employeeId',
             name: 'EMPLOYEE ID',
             width: 140,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className="font-semibold text-gray-900">{row.employeeId}</span>
             )
@@ -479,7 +463,7 @@ const EmployeeMaster = () => {
             key: 'employeeName',
             name: 'EMPLOYEE NAME',
             width: 200,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className="font-semibold text-gray-900">{row.employeeName}</span>
             )
@@ -488,19 +472,19 @@ const EmployeeMaster = () => {
             key: 'departmentName',
             name: 'DEPARTMENT',
             width: 150,
-            renderHeaderCell: FilterHeaderCell
+            renderHeaderCell: PlainHeaderCell
         },
         {
             key: 'plantLocation',
             name: 'LOCATION',
             width: 140,
-            renderHeaderCell: FilterHeaderCell
+            renderHeaderCell: PlainHeaderCell
         },
         {
             key: 'role',
             name: 'WORKFLOW ROLE',
             width: 160,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className="font-bold text-gray-800 text-[11px] uppercase tracking-wide">
                     {row.role || 'Requester'}
@@ -512,7 +496,7 @@ const EmployeeMaster = () => {
             key: 'mailId',
             name: 'EMAIL',
             width: 220,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <a href={`mailto:${row.mailId}`} className="text-tvs-primary hover:underline font-medium">
                     {row.mailId}
@@ -523,7 +507,7 @@ const EmployeeMaster = () => {
             key: 'status',
             name: 'STATUS',
             width: 130,
-            renderHeaderCell: FilterHeaderCell,
+            renderHeaderCell: PlainHeaderCell,
             renderCell: ({ row }) => (
                 <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border inline-block ${getStatusColor(row.status)}`}>
                     {row.status}
@@ -666,10 +650,18 @@ const EmployeeMaster = () => {
                             }}>
                                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block', animation: 'pulse 2s infinite' }} />
                                 <span style={{ fontSize: 13, fontWeight: 700, color: '#065f46' }}>
-                                    {filteredEmployees?.length || 0}
+                                    {total || 0}
                                     <span style={{ fontWeight: 500, color: '#059669', marginLeft: 4 }}>employees</span>
                                 </span>
                             </div>
+
+                            <input
+                                type="text"
+                                placeholder="Search employees..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all w-48"
+                            />
 
                             {/* ── Customize Columns / Colors / Layout ── */}
                             <ColumnCustomizer
@@ -777,7 +769,7 @@ const EmployeeMaster = () => {
                         {/* Pagination Controls */}
                         <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-200 shrink-0">
                             <div className="text-[11px] font-semibold text-gray-500">
-                                Showing {gridRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, gridRows.length)} of {gridRows.length} entries
+                                Showing {total === 0 ? 0 : (currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, total)} of {total} entries
                             </div>
                             <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-2">
@@ -803,11 +795,11 @@ const EmployeeMaster = () => {
                                         Prev
                                     </button>
                                     <span className="text-[11px] font-bold text-gray-600 px-2 min-w-[70px] text-center">
-                                        Page {currentPage} / {Math.max(1, Math.ceil(gridRows.length / pageSize))}
+                                        Page {currentPage} / {totalPages || 1}
                                     </span>
                                     <button 
-                                        onClick={() => setCurrentPage(p => Math.min(Math.ceil(gridRows.length / pageSize), p + 1))}
-                                        disabled={currentPage >= Math.ceil(gridRows.length / pageSize) || gridRows.length === 0}
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage >= totalPages || total === 0}
                                         className="px-3 py-1 border border-gray-300 rounded text-[11px] font-bold text-gray-700 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
                                     >
                                         Next

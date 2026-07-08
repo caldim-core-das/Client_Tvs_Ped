@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
 const path = require('path');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -19,11 +20,25 @@ dbPromise.then(() => {
     initializeAlertScheduler();
     const { initializeWorkflowEscalationCron } = require('./jobs/workflowEscalationCron');
     initializeWorkflowEscalationCron();
+    const { initializeWorkflowNotificationCron } = require('./jobs/workflowNotificationCron');
+    initializeWorkflowNotificationCron();
+    const { initializeFileCleanupCron } = require('./jobs/fileCleanupCron');
+    initializeFileCleanupCron();
 }).catch(err => console.error('Database connection failed:', err));
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: function (origin, callback) {
+        if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+            callback(null, true);
+        } else {
+            callback(null, process.env.VITE_API_BASE_URL || 'http://localhost:5173');
+        }
+    },
+    credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 // Request logging middleware
 app.use((req, res, next) => {

@@ -1,12 +1,40 @@
 const Vendor = require('../models/Vendor');
 
-// @desc    Get all vendors
+// @desc    Get all vendors with pagination
 // @route   GET /api/vendor
 // @access  Private
 const getAllVendors = async (req, res) => {
     try {
-        const vendors = await Vendor.find().sort({ sNo: 1 });
-        res.status(200).json(vendors);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const filter = {};
+        if (req.query.search) {
+            filter.$or = [
+                { vendorCode: { $regex: req.query.search, $options: 'i' } },
+                { vendorName: { $regex: req.query.search, $options: 'i' } },
+                { vendorLocation: { $regex: req.query.search, $options: 'i' } },
+                { vendorMailId: { $regex: req.query.search, $options: 'i' } }
+            ];
+        }
+
+        const vendors = await Vendor.find(filter)
+            .sort({ sNo: 1 })
+            .skip(skip)
+            .limit(limit);
+            
+        const total = await Vendor.countDocuments(filter);
+        const totalPages = Math.ceil(total / limit);
+
+        res.status(200).json({
+            success: true,
+            count: vendors.length,
+            total,
+            totalPages,
+            currentPage: page,
+            data: vendors
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

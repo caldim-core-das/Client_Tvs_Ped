@@ -302,7 +302,11 @@ const getAllMHRequests = async (req, res) => {
 // @access  Public
 const getMHRequestById = async (req, res) => {
     try {
-        const request = await MHRequest.findById(req.params.id)
+        const mongoose = require('mongoose');
+        const isObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
+        const query = isObjectId ? { _id: req.params.id } : { mhRequestId: req.params.id };
+
+        const request = await MHRequest.findOne(query)
             .populate('assignedVendor')
             .populate('assignedEngineer', 'employeeId employeeName mailId departmentName')
             .populate('approver', 'employeeId employeeName mailId departmentName');

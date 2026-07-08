@@ -6,10 +6,16 @@ const API_URL = '/mh-development-tracker';
 // Async thunks
 export const fetchTrackers = createAsyncThunk(
     'mhDevelopmentTracker/fetchAll',
-    async (_, { rejectWithValue }) => {
+    async (params = {}, { rejectWithValue }) => {
         try {
-            const response = await api.get(API_URL);
-            return response.data.data;
+            const { page = 1, limit = 50, search = '' } = params;
+            const queryParams = new URLSearchParams();
+            if (page) queryParams.append('page', page);
+            if (limit) queryParams.append('limit', limit);
+            if (search) queryParams.append('search', search);
+
+            const response = await api.get(`${API_URL}?${queryParams.toString()}`);
+            return response.data;
         } catch (error) {
             return rejectWithValue(error.response?.data?.message || 'Failed to fetch trackers');
         }
@@ -109,6 +115,9 @@ const mhDevelopmentTrackerSlice = createSlice({
     name: 'mhDevelopmentTracker',
     initialState: {
         trackers: [],
+        total: 0,
+        totalPages: 0,
+        currentPage: 1,
         vendors: [],
         loading: false,
         error: null,
@@ -131,7 +140,10 @@ const mhDevelopmentTrackerSlice = createSlice({
             })
             .addCase(fetchTrackers.fulfilled, (state, action) => {
                 state.loading = false;
-                state.trackers = action.payload;
+                state.trackers = action.payload.data || action.payload;
+                state.total = action.payload.total || 0;
+                state.totalPages = action.payload.totalPages || 0;
+                state.currentPage = action.payload.currentPage || 1;
             })
             .addCase(fetchTrackers.rejected, (state, action) => {
                 state.loading = false;
