@@ -92,6 +92,43 @@ const EmployeeMaster = () => {
 
 
     const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(50);
+
+    // Derived filtered list used by column filter dropdowns and the row count display
+    const filteredEmployees = useMemo(() => {
+        let result = employees || [];
+        if (statusFilter !== 'all') {
+            result = result.filter(emp => emp.status === statusFilter);
+        }
+        if (accessFilter !== 'all') {
+            result = result.filter(emp =>
+                (emp.accessLevel || '').toLowerCase() === accessFilter.toLowerCase()
+            );
+        }
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            result = result.filter(emp =>
+                (emp.employeeName || '').toLowerCase().includes(term) ||
+                (emp.employeeId || '').toLowerCase().includes(term) ||
+                (emp.mailId || '').toLowerCase().includes(term) ||
+                (emp.departmentName || '').toLowerCase().includes(term)
+            );
+        }
+        if (Object.keys(columnFilters).length > 0) {
+            result = result.filter(row =>
+                Object.entries(columnFilters).every(([key, allowedValues]) => {
+                    const cellValue = row[key] == null ? '' : String(row[key]);
+                    return allowedValues.includes(cellValue);
+                })
+            );
+        }
+        return result;
+    }, [employees, statusFilter, accessFilter, searchTerm, columnFilters]);
+
+    const paginatedRows = useMemo(() => {
+        return (employees || []).map((row, i) => ({ ...row, _serialNo: (currentPage - 1) * pageSize + i + 1 }));
+    }, [employees, currentPage, pageSize]);
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -303,12 +340,7 @@ const EmployeeMaster = () => {
         toast.success('Template downloaded successfully');
     };
 
-    const [currentPage, setCurrentPage] = React.useState(1);
-    const [pageSize, setPageSize] = React.useState(50);
 
-    const paginatedRows = React.useMemo(() => {
-        return (employees || []).map((row, i) => ({ ...row, _serialNo: (currentPage - 1) * pageSize + i + 1 }));
-    }, [employees, currentPage, pageSize]);
 
     const PlainHeaderCell = ({ column }) => (
         <div className="h-full w-full flex items-center px-4 text-white">
@@ -575,24 +607,6 @@ const EmployeeMaster = () => {
         }
     ];
 
-    useEffect(() => {
-        if (!gridContainerRef.current) return;
-
-        const updateWidth = () => {
-            if (gridContainerRef.current) {
-                setGridWidth(gridContainerRef.current.clientWidth);
-            }
-        };
-
-        updateWidth();
-
-        const observer = new ResizeObserver(updateWidth);
-        observer.observe(gridContainerRef.current);
-
-        return () => {
-            observer.disconnect();
-        };
-    }, []);
 
     const freezeColumnList = dataGridColumns
         .filter(col => col.key !== 'serial')
