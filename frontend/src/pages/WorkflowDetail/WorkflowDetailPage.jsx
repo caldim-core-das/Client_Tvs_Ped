@@ -178,6 +178,36 @@ export default function WorkflowDetailPage() {
                 </div>
             )}
 
+            {/* Design Rejection Banner for Designer & Governance Viewers */}
+            {workflow?.workflowState === 'DESIGN_REJECTED' && (
+                <div className="w-full px-4 lg:px-8 pt-6">
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-start gap-3 text-sm font-semibold text-red-800 shadow-sm">
+                        <AlertTriangle size={20} className="shrink-0 text-red-600 mt-0.5" />
+                        <div>
+                            <p className="font-bold text-red-900 text-base m-0">Design Rejected by Checker — Revision Required</p>
+                            <p className="text-red-700 text-sm mt-1 m-0">
+                                <strong>Feedback from Checker:</strong> "{workflow?.checkerComment || request?.checkerComment || 'Please review design specifications and resubmit.'}"
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Reverted by Designer Banner */}
+            {workflow?.workflowState === 'REVERTED' && (
+                <div className="w-full px-4 lg:px-8 pt-6">
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-start gap-3 text-sm font-semibold text-red-800 shadow-sm">
+                        <AlertTriangle size={20} className="shrink-0 text-red-600 mt-0.5" />
+                        <div>
+                            <p className="font-bold text-red-900 text-base m-0">MH Request Reverted by Designer</p>
+                            <p className="text-red-700 text-sm mt-1 m-0">
+                                <strong>Reason for Reversion:</strong> "{workflow?.stageHistory?.find(h => h.action === 'REVERTED')?.comment || request?.remark || 'Requirements not fulfilling or requires correction.'}"
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Main Content */}
             <div className="w-full px-4 lg:px-8">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">

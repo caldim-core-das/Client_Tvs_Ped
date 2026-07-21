@@ -62,6 +62,11 @@ router.post('/:id/generate-asset', mhRequestController.generateAssetForRequest);
 // @access  Private
 router.patch('/:id/assign-engineer', mhRequestController.assignEngineer);
 
+// @route   PATCH /api/asset-request/:id/assign-designer
+// @desc    Assign Designer to MH request (via PED Engineer)
+// @access  Private
+router.patch('/:id/assign-designer', mhRequestController.assignDesigner);
+
 // @route   POST /api/asset-request/:id/email-log
 // @desc    Append email log entry to MH request
 // @access  Private

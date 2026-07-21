@@ -110,10 +110,10 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
         };
 
         const updates = {};
-        if (role === 'L1 Approver' || role === 'Admin') {
+        if (role === 'L1 Approver' || role === 'PED Engineer' || role === 'Admin') {
             updates.l1 = await fetchCount('l1');
         }
-        if (role === 'Designer' || role === 'Admin') {
+        if (role === 'Designer' || role === 'PED Engineer' || role === 'Admin') {
             updates.design = await fetchCount('design');
         }
         if (role === 'Checker' || role === 'Admin') {
@@ -178,31 +178,31 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
     const workflowItems = [];
     const role = user?.role;
 
-    if (role === 'L1 Approver' || role === 'Admin') {
+    if (role === 'L1 Approver' || role === 'PED Engineer' || role === 'Admin') {
         workflowItems.push({
             name: 'L1 Approval Queue',  short: 'L1 Queue', icon: Inbox,
-            path: '/workflow-queue/l1',  permission: 'requestTracker',
+            path: '/workflow-queue/l1',
             badge: queueCounts.l1,      badgeColor: '#f59e0b'
         });
     }
-    if (role === 'Designer' || role === 'Admin') {
+    if (role === 'Designer' || role === 'PED Engineer' || role === 'Admin') {
         workflowItems.push({
             name: 'Design Queue',  short: 'Design Q', icon: Pencil,
-            path: '/design-queue', permission: 'designQueue',
+            path: '/design-queue',
             badge: queueCounts.design,  badgeColor: '#7c3aed'
         });
     }
     if (role === 'Checker' || role === 'Admin') {
         workflowItems.push({
             name: 'Checker Queue',  short: 'Check Q', icon: CheckSquare,
-            path: '/checker-queue', permission: 'checkerQueue',
+            path: '/checker-queue',
             badge: queueCounts.checker, badgeColor: '#0891b2'
         });
     }
     if (role === 'Final Approver' || role === 'Admin') {
         workflowItems.push({
             name: 'Final Approval',  short: 'Final Q', icon: Award,
-            path: '/final-approval-queue', permission: 'finalApprovalQueue',
+            path: '/final-approval-queue',
             badge: queueCounts.final,   badgeColor: '#16a34a'
         });
     }

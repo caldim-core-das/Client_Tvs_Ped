@@ -7,27 +7,26 @@ const nodemailer = require('nodemailer');
 
 // Create transporter
 const createTransporter = () => {
-    // Check if SMTP credentials are configured
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
         console.warn('[Email Service] SMTP credentials not configured. Emails will not be sent.');
         return null;
     }
 
     console.log('[Email Service] Creating SMTP transporter for:', process.env.SMTP_HOST);
+    const port = parseInt(process.env.SMTP_PORT, 10) || 587;
+    const isSecure = process.env.SMTP_SECURE === 'true' || port === 465;
 
     return nodemailer.createTransport({
         host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT),
-        secure: false, // false for port 587
+        port: port,
+        secure: isSecure,
         auth: {
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASS
         },
         tls: {
-            rejectUnauthorized: false,
-            ciphers: 'SSLv3'
-        },
-        requireTLS: true // Force TLS
+            rejectUnauthorized: false
+        }
     });
 };
 

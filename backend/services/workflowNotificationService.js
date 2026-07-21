@@ -10,47 +10,134 @@ const WorkflowNotificationLog = require('../models/WorkflowNotificationLog');
 // ─── Transporter factory ──────────────────────────────────────────────────────
 function createTransporter() {
     if (!process.env.SMTP_HOST || !process.env.SMTP_USER) return null;
+    const port = parseInt(process.env.SMTP_PORT, 10) || 587;
+    const isSecure = process.env.SMTP_SECURE === 'true' || port === 465;
     return nodemailer.createTransport({
-        host:   process.env.SMTP_HOST,
-        port:   parseInt(process.env.SMTP_PORT) || 587,
-        secure: false,
-        auth:   { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-        tls:    { rejectUnauthorized: false, ciphers: 'SSLv3' },
-        requireTLS: true
+        host: process.env.SMTP_HOST,
+        port: port,
+        secure: isSecure,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+        tls: { rejectUnauthorized: false }
     });
 }
 
 // ─── Email template builder ───────────────────────────────────────────────────
 function buildEmailTemplate(event, data) {
-    const { request, actor, recipient, leadTime } = data;
+    const { request, actor, recipient, leadTime, pedEngineers = [] } = data;
     const portalUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
 
     const header = (title, subtitle = '') => `
-<div style="font-family:Arial,sans-serif;max-width:660px;margin:0 auto;background:#f8fafc;">
-  <div style="background:#B31818;color:#fff;padding:24px 28px;border-radius:8px 8px 0 0;">
-    <h2 style="margin:0;font-size:20px;">${title}</h2>
-    <p style="margin:6px 0 0;opacity:.8;font-size:13px;">${subtitle || 'TVS-PED Portal · Workflow Notification'}</p>
+<div style="font-family:Arial,sans-serif;max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.05);">
+  <div style="background:#CC1F1F;color:#fff;padding:24px 28px;">
+    <h2 style="margin:0;font-size:22px;font-weight:700;">${title}</h2>
+    <p style="margin:6px 0 0;opacity:.9;font-size:13px;">${subtitle || 'TVS-PED Portal · Auto Notification'}</p>
   </div>
-  <div style="padding:24px 28px;background:#fff;border:1px solid #e2e8f0;border-top:none;">`;
+  <div style="padding:24px 28px;background:#fff;">`;
 
-    const requestTable = `
-    <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px;">
-      <tr style="background:#f1f5f9;"><td colspan="2" style="padding:8px 12px;font-weight:700;color:#B31818;font-size:12px;text-transform:uppercase;">Request Details</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;width:42%;background:#f8fafc;">Request ID</td><td style="padding:8px 12px;">${request.mhRequestId}</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Submitted By</td><td style="padding:8px 12px;">${request.userName}</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Department</td><td style="padding:8px 12px;">${request.departmentName}</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Equipment</td><td style="padding:8px 12px;">${request.materialHandlingEquipment || '—'}</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Plant</td><td style="padding:8px 12px;">${request.plantLocation}</td></tr>
-      <tr><td style="padding:8px 12px;font-weight:600;background:#f8fafc;">Request Type</td><td style="padding:8px 12px;">${request.requestType}</td></tr>
-    </table>`;
+    const requestDetailsTable = `
+    <div style="margin-bottom:24px;border:1px solid #f1f5f9;border-radius:10px;overflow:hidden;">
+      <div style="background:#fef2f2;padding:10px 14px;border-bottom:1px solid #fecaca;">
+        <span style="font-weight:800;color:#B31818;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">REQUEST DETAILS</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tr style="border-bottom:1px solid #f8fafc;">
+          <td style="padding:10px 14px;font-weight:700;width:38%;background:#f8fafc;color:#334155;">Request ID</td>
+          <td style="padding:10px 14px;color:#0f172a;font-weight:600;">${request.mhRequestId || '—'}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f8fafc;">
+          <td style="padding:10px 14px;font-weight:700;background:#f8fafc;color:#334155;">Submitted By</td>
+          <td style="padding:10px 14px;color:#0f172a;">${request.userName || '—'}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f8fafc;">
+          <td style="padding:10px 14px;font-weight:700;background:#f8fafc;color:#334155;">Department</td>
+          <td style="padding:10px 14px;color:#0f172a;">${request.departmentName || '—'}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f8fafc;">
+          <td style="padding:10px 14px;font-weight:700;background:#f8fafc;color:#334155;">Handling Part</td>
+          <td style="padding:10px 14px;color:#0f172a;">${request.handlingPartName || '—'}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f8fafc;">
+          <td style="padding:10px 14px;font-weight:700;background:#f8fafc;color:#334155;">Equipment Type</td>
+          <td style="padding:10px 14px;color:#0f172a;">${request.materialHandlingEquipment || '—'}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f8fafc;">
+          <td style="padding:10px 14px;font-weight:700;background:#f8fafc;color:#334155;">Location</td>
+          <td style="padding:10px 14px;color:#0f172a;">${request.materialHandlingLocation || request.location || request.plantLocation || '—'}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f8fafc;">
+          <td style="padding:10px 14px;font-weight:700;background:#f8fafc;color:#334155;">Flow</td>
+          <td style="padding:10px 14px;color:#0f172a;font-weight:600;">${request.from || ''} &rarr; ${request.to || ''}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f8fafc;">
+          <td style="padding:10px 14px;font-weight:700;background:#f8fafc;color:#334155;">Volume/Day</td>
+          <td style="padding:10px 14px;color:#0f172a;">${request.volumePerDay ?? '—'}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f8fafc;">
+          <td style="padding:10px 14px;font-weight:700;background:#f8fafc;color:#334155;">Request Type</td>
+          <td style="padding:10px 14px;color:#0f172a;">${request.requestType || '—'}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 14px;font-weight:700;background:#f8fafc;color:#334155;">Problem Statement</td>
+          <td style="padding:10px 14px;color:#0f172a;">${request.problemStatement || '—'}</td>
+        </tr>
+      </table>
+    </div>`;
+
+    const requestTable = requestDetailsTable;
+
+    const engineersList = Array.isArray(pedEngineers) ? pedEngineers : [];
+
+    const pedEngineersBox = `
+    <div style="background:#eff6ff;border:1px solid #dbeafe;border-radius:12px;padding:20px;margin-bottom:24px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="font-size:18px;">👱</span>
+        <h3 style="margin:0;font-size:15px;font-weight:700;color:#1e3a8a;">Assign a PED Engineer</h3>
+      </div>
+      <p style="margin:0 0 14px;font-size:13px;color:#475569;line-height:1.4;">
+        Click <strong>Assign</strong> next to an engineer to assign them to this request. The engineer will be automatically notified.
+      </p>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #dbeafe;">
+        <thead>
+          <tr style="background:#dbeafe;color:#1e3a8a;">
+            <th style="padding:10px 14px;text-align:left;font-weight:700;">Engineer</th>
+            <th style="padding:10px 14px;text-align:right;font-weight:700;width:100px;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${engineersList.length > 0 ? engineersList.map(eng => {
+            const reqId = request._id || request.mhRequestId;
+            const engId = eng._id || eng.employeeId;
+            const assignUrl = `${backendUrl}/api/asset-request/${reqId}/assign-link/${engId}`;
+            return `
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:12px 14px;">
+                <div style="font-weight:700;color:#0f172a;font-size:14px;">${eng.employeeName}</div>
+                <div style="font-size:12px;color:#64748b;margin-top:2px;">${eng.employeeId || ''} · ${eng.departmentName || ''}</div>
+              </td>
+              <td style="padding:12px 14px;text-align:right;vertical-align:middle;">
+                <a href="${assignUrl}" style="display:inline-block;background:#CC1F1F;color:#ffffff;padding:8px 18px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;">Assign</a>
+              </td>
+            </tr>`;
+          }).join('') : `
+            <tr>
+              <td colspan="2" style="padding:14px;text-align:center;color:#64748b;">No active PED Engineers found in Employee Master.</td>
+            </tr>
+          `}
+        </tbody>
+      </table>
+    </div>`;
 
     const footer = `
-    <p style="margin:24px 0 0;color:#64748b;font-size:13px;">Regards,<br><strong>TVS-PED Portal</strong></p>
+    <p style="margin:24px 0 0;color:#475569;font-size:13px;">
+      You can also view and manage this request in the portal: <a href="${portalUrl}/workflow-queue/l1" style="color:#CC1F1F;font-weight:700;text-decoration:underline;">Open TVS-PED Portal</a>
+    </p>
+    <p style="margin:20px 0 0;color:#64748b;font-size:13px;">Regards,<br><strong>TVS-PED Portal</strong></p>
   </div>
-  <div style="padding:12px 28px;text-align:center;font-size:11px;color:#94a3b8;">This is an automated notification. Do not reply to this email.</div>
+  <div style="padding:14px 28px;text-align:center;font-size:11px;color:#94a3b8;background:#f8fafc;border-top:1px solid #e2e8f0;">This is an automated notification. Do not reply to this email.</div>
 </div>`;
 
-    const portalBtn = `<a href="${portalUrl}" style="display:inline-block;background:#B31818;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:600;margin-top:12px;">Open Portal</a>`;
+    const portalBtn = `<a href="${portalUrl}" style="display:inline-block;background:#CC1F1F;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:600;margin-top:12px;">Open Portal</a>`;
 
     // ─── Lead Time Status block ─── Consumed/Remaining/% — rendered whenever a
     // leadTime payload with computed status (see backend/utils/leadTimeStatus.js) is passed.
@@ -75,23 +162,14 @@ function buildEmailTemplate(event, data) {
 
     const templates = {
         REQUEST_SUBMITTED: {
-            subject: `[TVS-PED] New MH Request — ${request.mhRequestId} — Action Required`,
+            subject: `New MH Request — Action Required (${request.mhRequestId})`,
             html: `${header('New MH Request — Action Required')}
-              <p>Dear <strong>${recipient.name}</strong>,</p>
-              <p style="color:#475569;">A new MH request requires your <strong>L1 Approval</strong>. Please review the details and the AI Lead Time Insight below.</p>
-              ${requestTable}
-              ${leadTimeStatusBlock}
-              ${leadTime ? `
-              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
-                <p style="margin:0 0 8px;font-weight:700;color:#15803d;">🤖 AI Lead Time Insight</p>
-                <p style="margin:0;font-size:20px;font-weight:700;color:#166534;">Estimated: ${leadTime.estimatedDays} Days</p>
-                <p style="margin:4px 0 8px;color:#64748b;font-size:13px;">Confidence: ${leadTime.confidence}%</p>
-                <ul style="margin:0;padding-left:18px;color:#374151;font-size:13px;">
-                  ${leadTime.factors.map(f => `<li>${f}</li>`).join('')}
-                </ul>
-                <p style="margin:8px 0 0;font-style:italic;color:#166534;font-size:13px;">💡 ${leadTime.recommendation}</p>
-              </div>` : ''}
-              ${portalBtn}
+              <p style="font-size:14px;color:#0f172a;margin-top:0;">Dear <strong>${recipient.name}</strong> ,</p>
+              <p style="color:#475569;font-size:14px;line-height:1.5;margin-bottom:20px;">
+                A new Material Handling (MH) request has been submitted and requires your approval. Please review the details below and assign a PED Engineer.
+              </p>
+              ${requestDetailsTable}
+              ${pedEngineersBox}
               ${footer}`
         },
         L1_APPROVED: {
@@ -117,12 +195,30 @@ function buildEmailTemplate(event, data) {
               <p style="color:#475569;font-size:13px;">Please submit a new request with the required corrections.</p>
               ${footer}`
         },
+        REVERTED: {
+            subject: `MH Request Reverted by Designer — ${request.mhRequestId}`,
+            html: `${header('MH Request Reverted by Designer')}
+              <p style="font-size:14px;color:#0f172a;margin-top:0;">Dear <strong>${recipient.name}</strong>,</p>
+              <p style="color:#475569;font-size:14px;line-height:1.5;margin-bottom:20px;">
+                The MH Request <strong>${request.mhRequestId}</strong> has been reverted/rejected by the Designer.
+              </p>
+              <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
+                <p style="margin:0 0 6px;font-weight:700;color:#991b1b;">Reason for Reversion:</p>
+                <p style="margin:0;color:#374151;font-weight:600;">${request.revertComment || 'Requirement is not fulfilling or requires correction.'}</p>
+              </div>
+              ${requestDetailsTable}
+              ${leadTimeStatusBlock}
+              ${portalBtn}
+              ${footer}`
+        },
         DESIGNER_ASSIGNED: {
-            subject: `[TVS-PED] Design Assignment — ${request.mhRequestId}`,
-            html: `${header('Design Work Assignment')}
-              <p>Dear <strong>${recipient.name}</strong>,</p>
-              <p>You have been assigned as Designer for request <strong>${request.mhRequestId}</strong>. Please log in and begin your design work.</p>
-              ${requestTable}
+            subject: `Design Assignment — ${request.mhRequestId}`,
+            html: `${header('Design Assignment Notification')}
+              <p style="font-size:14px;color:#0f172a;margin-top:0;">Dear <strong>${recipient.name}</strong>,</p>
+              <p style="color:#475569;font-size:14px;line-height:1.5;margin-bottom:20px;">
+                For the MH request <strong>${request.mhRequestId}</strong>, the PED Engineer has chosen you to design the product. Please log in to the portal and begin your design work.
+              </p>
+              ${requestDetailsTable}
               ${leadTimeStatusBlock}
               ${portalBtn}
               ${footer}`
@@ -138,37 +234,49 @@ function buildEmailTemplate(event, data) {
               ${footer}`
         },
         DESIGN_SUBMITTED: {
-            subject: `[TVS-PED] Design Ready for Review — ${request.mhRequestId}`,
-            html: `${header('Design Submitted — Checker Review Required')}
-              <p>Dear <strong>${recipient.name}</strong>,</p>
-              <p>The designer has submitted design documents for <strong>${request.mhRequestId}</strong>. Please review and approve or reject the design.</p>
-              ${requestTable}
+            subject: `Design Submitted — Checker Review Required — ${request.mhRequestId}`,
+            html: `${header('Design Submitted — Review Required')}
+              <p style="font-size:14px;color:#0f172a;margin-top:0;">Dear <strong>${recipient.name}</strong>,</p>
+              <p style="color:#475569;font-size:14px;line-height:1.5;margin-bottom:20px;">
+                For the MH request <strong>${request.mhRequestId}</strong>, the design has been submitted and needs to be reviewed. Please log in to the portal to view the design and complete your check.
+              </p>
+              ${requestDetailsTable}
               ${leadTimeStatusBlock}
-              ${portalBtn}
+              <div style="text-align:center;margin:30px 0;">
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/checker-queue" style="background:#B31818;color:#ffffff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;">Open Checker Queue & Review Design</a>
+              </div>
               ${footer}`
         },
         DESIGN_APPROVED: {
-            subject: `[TVS-PED] Design Approved — Final Sign-off Required — ${request.mhRequestId}`,
+            subject: `Design Approved — Final Approval Required — ${request.mhRequestId}`,
             html: `${header('Design Approved — Final Approval Required')}
-              <p>Dear <strong>${recipient.name}</strong>,</p>
-              <p>The design for <strong>${request.mhRequestId}</strong> has passed Checker Review and is awaiting your Final Approval.</p>
-              ${requestTable}
+              <p style="font-size:14px;color:#0f172a;margin-top:0;">Dear <strong>${recipient.name}</strong>,</p>
+              <p style="color:#475569;font-size:14px;line-height:1.5;margin-bottom:20px;">
+                For the MH request <strong>${request.mhRequestId}</strong>, the Checker has approved the design and it has come to you for final approval. Please log in to the portal and perform your approval.
+              </p>
+              ${requestDetailsTable}
               ${leadTimeStatusBlock}
-              ${portalBtn}
+              <div style="text-align:center;margin:30px 0;">
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/final-approval-queue" style="background:#B31818;color:#ffffff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;">Open Final Approval Queue</a>
+              </div>
               ${footer}`
         },
         DESIGN_REJECTED: {
-            subject: `[TVS-PED] Design Returned for Revision — ${request.mhRequestId}`,
+            subject: `Design Rejected by Checker — Revision Required — ${request.mhRequestId}`,
             html: `${header('Design Rejected — Revision Required')}
-              <p>Dear <strong>${recipient.name}</strong>,</p>
-              <p>Your design for <strong>${request.mhRequestId}</strong> has been returned by the Checker for revision.</p>
-              ${requestTable}
-              ${leadTimeStatusBlock}
+              <p style="font-size:14px;color:#0f172a;margin-top:0;">Dear <strong>${recipient.name}</strong>,</p>
+              <p style="color:#475569;font-size:14px;line-height:1.5;margin-bottom:20px;">
+                For the MH request <strong>${request.mhRequestId}</strong>, the Checker has rejected the submitted design. Please review the feedback below and resubmit the updated design.
+              </p>
               <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
-                <p style="margin:0 0 6px;font-weight:700;color:#991b1b;">Checker Feedback:</p>
-                <p style="margin:0;color:#374151;">${request.checkerComment || 'Please review and resubmit.'}</p>
+                <p style="margin:0 0 6px;font-weight:700;color:#991b1b;">Reason for Rejection:</p>
+                <p style="margin:0;color:#374151;font-weight:600;">${request.checkerComment || 'Please review the design requirements and resubmit.'}</p>
               </div>
-              ${portalBtn}
+              ${requestDetailsTable}
+              ${leadTimeStatusBlock}
+              <div style="text-align:center;margin:30px 0;">
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/design-queue" style="background:#B31818;color:#ffffff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;">Open Design Queue & Resubmit Design</a>
+              </div>
               ${footer}`
         },
         FINAL_APPROVED: {
@@ -237,9 +345,9 @@ function buildEmailTemplate(event, data) {
  * @param {Object} options.actor     - { userId, userName, role }
  * @param {Object} [options.leadTime] - Lead time data (optional)
  */
-async function sendWorkflowNotification({ request, event, recipient, actor, leadTime = null }) {
+async function sendWorkflowNotification({ request, event, recipient, actor, leadTime = null, pedEngineers = [] }) {
     const transporter = createTransporter();
-    const { subject, html } = buildEmailTemplate(event, { request, actor, recipient, leadTime });
+    const { subject, html } = buildEmailTemplate(event, { request, actor, recipient, leadTime, pedEngineers });
 
     // Create log entry
     const logEntry = await WorkflowNotificationLog.create({
@@ -344,4 +452,4 @@ async function retryFailedNotifications() {
     }
 }
 
-module.exports = { sendWorkflowNotification, retryFailedNotifications };
+module.exports = { sendWorkflowNotification, retryFailedNotifications, buildEmailTemplate };

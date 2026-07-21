@@ -84,18 +84,18 @@ const getWorkflowState = asyncHandler(async (req, res) => {
 
     res.json({
         mhRequestId:    request.mhRequestId,
-        workflowState:  request.workflowState,
-        workflowVersion: request.workflowVersion,
-        currentStage:   request.currentStage,
+        workflowState:  request.workflowState || 'SUBMITTED',
+        workflowVersion: request.workflowVersion || 2,
+        currentStage:   request.currentStage || 1,
         assignments: {
             designer:      request.assignedDesigner,
             checker:       request.assignedChecker,
             finalApprover: request.assignedFinalApprover
         },
         leadTime: buildLeadTimePayload(request),
-        stageFlags:   request.stageFlags,
-        stageHistory: request.stageHistory,
-        designDocuments: request.designDocuments
+        stageFlags:   request.stageFlags || {},
+        stageHistory: request.stageHistory || [],
+        designDocuments: request.designDocuments || []
     });
 });
 
@@ -105,14 +105,20 @@ const getWorkflowQueue = asyncHandler(async (req, res) => {
     const { queueType } = req.params;
     const userId = req.user._id;
 
-    let query = { workflowVersion: 2 };
+    let query = {};
 
     switch (queueType) {
         case 'l1':
-            query.workflowState = 'SUBMITTED';
+            query = {
+                $or: [
+                    { workflowState: { $in: ['SUBMITTED', 'Notified', 'Assigned', 'Pending', 'REVERTED', 'L1_REJECTED'] } },
+                    { workflowStatus: { $in: ['Pending', 'Notified', 'Assigned', 'Active', 'Rejected', 'Reverted'] } },
+                    { workflowState: { $exists: false } }
+                ]
+            };
             break;
         case 'design':
-            query.workflowState = { $in: ['DESIGN_IN_PROGRESS', 'DESIGN_REJECTED'] };
+            query.workflowState = { $in: ['DESIGN_IN_PROGRESS', 'DESIGN_REJECTED', 'L1_APPROVED', 'Assigned', 'In Progress'] };
             if (req.user.role === 'Designer') {
                 const emp = await Employee.findOne({ userId: userId });
                 if (emp) query.assignedDesigner = emp._id;
@@ -338,29 +344,50 @@ const designerReject = asyncHandler(async (req, res) => {
         currentStage:      0,
         status:            'Rejected',
         progressStatus:    'Reverted by Designer',
+        remark:            `Reverted by Designer: ${comment}`,
+        revertComment:     comment,
         $push: { stageHistory: historyEntry }
     });
 
-    const updatedRequest = await MHRequest.findById(request._id).lean();
+    const updatedRequest = await MHRequest.findById(request._id)
+        .populate('assignedEngineer approver', 'mailId employeeName').lean();
     const leadTime = buildLeadTimePayload(updatedRequest);
+    const actor    = buildActor(req.user);
 
-    try {
-        const requesterEmployee = await Employee.findOne({ mailId: updatedRequest.mailId })
-            || await Employee.findOne({ employeeName: updatedRequest.userName });
-        const requesterEmail = requesterEmployee?.mailId || updatedRequest.mailId;
-        if (requesterEmail) {
-            sendRequesterStatusEmail(requesterEmail, {
-                mhRequestId: updatedRequest.mhRequestId,
-                userName: updatedRequest.userName,
-                status: 'Reverted',
-                handlingPartName: updatedRequest.handlingPartName,
-                departmentName: updatedRequest.departmentName,
-                plantLocation: updatedRequest.plantLocation,
-                remark: `Sorry, the given request or the requirement is not fulfilling: ${comment}`
-            });
-        }
-    } catch (emailErr) {
-        console.error('[AutoEmail] Could not resolve requester email for status notification:', emailErr.message);
+    // Collect recipient list: 1) L1 Approver, 2) PED Engineer, 3) Requester / Admin
+    const recipients = [];
+
+    // 1. L1 Approver
+    let l1App = updatedRequest.approver;
+    if (!l1App || !l1App.mailId) {
+        l1App = await Employee.findOne({ role: 'L1 Approver', status: 'Active' }).lean();
+    }
+    if (l1App?.mailId) recipients.push({ email: l1App.mailId, name: l1App.employeeName, role: 'L1 Approver' });
+
+    // 2. PED Engineer
+    let pedEng = updatedRequest.assignedEngineer;
+    if (!pedEng || !pedEng.mailId) {
+        pedEng = await Employee.findOne({ role: /^ped engineer$/i, status: 'Active' }).lean();
+    }
+    if (pedEng?.mailId && pedEng.mailId !== l1App?.mailId) {
+        recipients.push({ email: pedEng.mailId, name: pedEng.employeeName, role: 'PED Engineer' });
+    }
+
+    // 3. Requester / System Admin
+    const reqEmail = updatedRequest.mailId;
+    if (reqEmail && !recipients.some(r => r.email === reqEmail)) {
+        recipients.push({ email: reqEmail, name: updatedRequest.userName || 'Requester', role: 'Requester' });
+    }
+
+    // Send email notification to all allocated members
+    for (const rec of recipients) {
+        sendWorkflowNotification({
+            request: { ...updatedRequest, revertComment: comment },
+            event: 'REVERTED',
+            recipient: rec,
+            actor,
+            leadTime
+        }).catch(console.error);
     }
 
     res.json({ success: true, workflowState: 'REVERTED', leadTime, message: 'Request reverted back to requester.' });
@@ -412,7 +439,10 @@ const submitDesign = [
         const leadTime = buildLeadTimePayload(updatedRequest);
 
         const actor   = buildActor(req.user);
-        const checker = updatedRequest.assignedChecker;
+        let checker = updatedRequest.assignedChecker;
+        if (!checker || !checker.mailId) {
+            checker = await Employee.findOne({ role: /^checker$/i, status: 'Active' }).lean();
+        }
         if (checker?.mailId) {
             sendWorkflowNotification({
                 request:   updatedRequest,
@@ -493,18 +523,43 @@ const checkDesign = asyncHandler(async (req, res) => {
 
     const actor = buildActor(req.user);
     if (action === 'approve') {
-        const fa = updatedRequest.assignedFinalApprover;
-        if (fa?.mailId) {
+        let fa = updatedRequest.assignedFinalApprover;
+        let faEmail = fa?.mailId || fa?.email;
+        let faName = fa?.employeeName || fa?.name;
+
+        if (!faEmail) {
+            const faEmp = await Employee.findOne({ role: { $regex: /final.*approver/i }, status: 'Active' }).lean();
+            if (faEmp?.mailId) {
+                faEmail = faEmp.mailId;
+                faName = faEmp.employeeName;
+            } else {
+                const faUser = await User.findOne({ role: { $regex: /final.*approver/i }, status: 'Active' }).lean();
+                if (faUser?.email) {
+                    faEmail = faUser.email;
+                    faName = faUser.name;
+                }
+            }
+        }
+
+        if (!faEmail) {
+            faEmail = 'thejaashree.thangavel@caldimengg.in';
+            faName  = 'Final Approver';
+        }
+
+        if (faEmail) {
             sendWorkflowNotification({
                 request:   updatedRequest,
                 event:     'DESIGN_APPROVED',
-                recipient: { email: fa.mailId, name: fa.employeeName, role: 'Final Approver' },
+                recipient: { email: faEmail, name: faName || 'Final Approver', role: 'Final Approver' },
                 actor,
                 leadTime
             }).catch(console.error);
         }
     } else {
-        const designer = updatedRequest.assignedDesigner;
+        let designer = updatedRequest.assignedDesigner;
+        if (!designer || !designer.mailId) {
+            designer = await Employee.findOne({ role: /^designer$/i, status: 'Active' }).lean();
+        }
         if (designer?.mailId) {
             sendWorkflowNotification({
                 request:   updatedRequest,
