@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import axios from 'axios';
 import {
     l1Approve, l1Reject,
     submitDesign,
@@ -17,6 +18,12 @@ import {
 } from '../../api/workflowApi';
 import { CheckCircle2, XCircle, Send, PlayCircle, Loader2, Info, AlertTriangle } from 'lucide-react';
 
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const getAuthHeader = () => {
+    const t = sessionStorage.getItem('token');
+    return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
 // ─── Toast messaging per action — mirrors the enterprise notification copy ────
 const leadTimeSuffix = (lt) => {
     if (!lt || lt.consumedDays === undefined || lt.consumedDays === null) return '';
@@ -26,6 +33,7 @@ const leadTimeSuffix = (lt) => {
 const SUCCESS_TOASTS = {
     l1approve:      (lt) => `Designer & Checker Assigned.${leadTimeSuffix(lt)}`,
     l1reject:       () => 'MH Request Rejected. Requester notified.',
+    assigndesigner: () => 'Designer assigned successfully! Notification email sent.',
     submitdesign:   (lt) => `Design Submitted. Checker notified.${leadTimeSuffix(lt)}`,
     designerreject: () => 'Request Returned to Requester.',
     checkerapprove: (lt) => `Checker Approved Design. Final Approver notified.${leadTimeSuffix(lt)}`,
@@ -148,13 +156,19 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
     const panels = [];
     let actionSummary = '';
 
-    // L1 Approver: SUBMITTED
-    if ((role === 'L1 Approver' || role === 'Admin') && workflowState === 'SUBMITTED') {
-        actionSummary = "You are requested to review this submission. Approval requires assigning a Designer and a Checker.";
+    // L1 Approver / PED Engineer: SUBMITTED, Assigned, or DESIGN_IN_PROGRESS
+    if ((role === 'L1 Approver' || role === 'PED Engineer' || role === 'Admin') &&
+        ['SUBMITTED', 'Notified', 'Assigned', 'L1_APPROVED', 'Pending', 'DESIGN_IN_PROGRESS', 'DESIGN_REJECTED'].includes(workflowState)) {
+        actionSummary = actionSummary || "Select a Designer from Employee Master to assign them for product design. A notification email will be sent automatically.";
         panels.push(
-            <div key="l1" className="flex gap-3 flex-wrap">
-                <ActionButton config={BTN.approve} onClick={() => setModal('l1approve')} />
-                <ActionButton config={BTN.reject}  onClick={() => setModal('l1reject')}  />
+            <div key="ped-assign" className="flex flex-col gap-3">
+                <ActionButton
+                    config={{ base: 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-600/20', icon: Send, label: 'Assign Designer' }}
+                    onClick={() => setModal('assigndesigner')}
+                />
+                {role === 'L1 Approver' && workflowState === 'SUBMITTED' && (
+                    <ActionButton config={BTN.reject} onClick={() => setModal('l1reject')} />
+                )}
             </div>
         );
     }
@@ -235,6 +249,11 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
 
     if (!panels.length) return null;
 
+    const designerEmps = employees.filter(e => /^designer$/i.test(e.role || ''));
+    const designerOptions = (designerEmps.length > 0 ? designerEmps : employees).map(e => (
+        <option key={e._id} value={e._id}>{e.employeeName} ({e.employeeId} · {e.departmentName || e.role})</option>
+    ));
+
     const empOptions = employees.map(e => (
         <option key={e._id} value={e._id}>{e.employeeName} ({e.employeeId})</option>
     ));
@@ -269,6 +288,36 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
             </div>
 
             {/* ── Modals ── */}
+            {modal === 'assigndesigner' && (
+                <CommentModal
+                    title="Assign Designer for Product Design"
+                    required={false}
+                    extraFields={
+                        <div className="flex flex-col gap-4 mb-6">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">
+                                    Select Designer <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    value={designerId}
+                                    onChange={e => setDesignerId(e.target.value)}
+                                    className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-slate-50 font-medium text-slate-800"
+                                >
+                                    <option value="">Choose a Designer from list...</option>
+                                    {designerOptions}
+                                </select>
+                            </div>
+                        </div>
+                    }
+                    onClose={() => setModal(null)}
+                    onConfirm={({ comment }) => exec(async () => {
+                        if (!designerId) throw new Error('Please select a Designer to proceed');
+                        const res = await axios.patch(`${BASE_URL}/asset-request/${requestId}/assign-designer`, { designerId }, { headers: getAuthHeader() });
+                        setModal(null);
+                        return res.data;
+                    }, 'assigndesigner')}
+                />
+            )}
             {modal === 'l1approve' && (
                 <CommentModal
                     title="L1 Approval Authorization"

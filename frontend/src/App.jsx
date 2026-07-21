@@ -235,16 +235,16 @@ function App() {
               </ProtectedRoute>
             } />
 
-            {/* L1 Approval Queue — Approver + Admin */}
+            {/* L1 Approval Queue — Approver + PED Engineer + Admin */}
             <Route path="workflow-queue/l1" element={
-              <ProtectedRoute roles={['L1 Approver', 'Admin']}>
+              <ProtectedRoute roles={['L1 Approver', 'PED Engineer', 'Admin']}>
                 <L1ApprovalQueuePage />
               </ProtectedRoute>
             } />
 
-            {/* Design Queue — Designer + Admin */}
+            {/* Design Queue — Designer + PED Engineer + Admin */}
             <Route path="design-queue" element={
-              <ProtectedRoute roles={['Designer', 'Admin']}>
+              <ProtectedRoute roles={['Designer', 'PED Engineer', 'Admin']}>
                 <DesignQueuePage />
               </ProtectedRoute>
             } />

@@ -3,6 +3,7 @@ const AssetManagement = require('../models/AssetManagement');
 const MHDevelopmentTracker = require('../models/MHDevelopmentTracker');
 const Employee = require('../models/EmployeeModel');
 const nodemailer = require('nodemailer');
+const mongoose = require('mongoose');
 const { sendRequesterStatusEmail } = require('./emailController');
 const { estimateLeadTime } = require('../services/leadTimeService');
 const { sendWorkflowNotification } = require('../services/workflowNotificationService');
@@ -16,53 +17,74 @@ const { computeLeadTimeStatus } = require('../utils/leadTimeStatus');
 // ─────────────────────────────────────────────────────────────────────────────
 async function notifyL1OnSubmission(savedRequest, estimate, requester) {
     try {
-        // 1. Find L1 Approver for the department
+        // 1. Fetch L1 Approvers from Employee Master
         const dept = savedRequest.departmentName;
-        const approver = await Employee.findOne({
+        let approvers = await Employee.find({
             role: 'L1 Approver',
-            status: 'Active',
-            ...(dept ? { departmentName: dept } : {})
-        }) || await Employee.findOne({ role: 'L1 Approver', status: 'Active' });
+            status: 'Active'
+        }).lean();
 
-        if (!approver || !approver.mailId) {
-            console.warn('[WorkflowV2] No L1 Approver found for dept:', dept);
+        if (!approvers || approvers.length === 0) {
+            const fallbackApprover = await Employee.findOne({ status: 'Active' }).lean();
+            if (fallbackApprover) approvers = [fallbackApprover];
+        }
+
+        if (!approvers || approvers.length === 0) {
+            console.warn('[WorkflowV2] No L1 Approver found for notification.');
             return;
         }
 
-        // Persist approver reference — read later by workflowController
-        // (e.g. finalApprove's reject path notifies request.approverEmail)
+        // 2. Fetch active PED Engineers ONLY from Employee Master (excluding Designers & Requesters)
+        let pedEngineers = await Employee.find({
+            status: 'Active',
+            role: /^ped engineer$/i
+        }).sort({ employeeName: 1 }).lean();
+
+        if (!pedEngineers || pedEngineers.length === 0) {
+            pedEngineers = await Employee.find({
+                status: 'Active',
+                role: 'PED Engineer'
+            }).sort({ employeeName: 1 }).lean();
+        }
+
+        // 3. Persist primary approver reference in request
+        const primaryApprover = approvers[0];
         await MHRequest.findByIdAndUpdate(savedRequest._id, {
             $set: {
-                approver: approver._id,
-                approverEmail: approver.mailId,
+                approver: primaryApprover._id,
+                approverEmail: primaryApprover.mailId,
                 workflowStatus: 'Notified'
             }
         });
 
-        const leadTimeStatus = computeLeadTimeStatus({
+        const leadTimeStatus = estimate ? computeLeadTimeStatus({
             createdAt: savedRequest.createdAt,
             leadTimeEstimateDays: estimate.estimatedDays
-        });
+        }) : null;
 
-        await sendWorkflowNotification({
-            request: savedRequest,
-            event: 'REQUEST_SUBMITTED',
-            recipient: { email: approver.mailId, name: approver.employeeName, role: 'L1 Approver' },
-            actor: { userId: requester?.id || requester?._id, userName: savedRequest.userName, role: 'Requester' },
-            leadTime: {
-                estimatedDays: estimate.estimatedDays,
-                confidence:    estimate.confidence,
-                source:        estimate.source,
-                factors:       estimate.factors,
-                recommendation: estimate.recommendation,
-                ...leadTimeStatus
-            }
-        });
+        for (const approver of approvers) {
+            if (!approver.mailId) continue;
 
-        console.log(`[WorkflowV2] REQUEST_SUBMITTED notification sent to L1 Approver ${approver.mailId} for ${savedRequest.mhRequestId}`);
+            await sendWorkflowNotification({
+                request: savedRequest,
+                event: 'REQUEST_SUBMITTED',
+                recipient: { email: approver.mailId, name: approver.employeeName, role: 'L1 Approver' },
+                actor: { userId: requester?.id || requester?._id, userName: savedRequest.userName, role: 'Requester' },
+                pedEngineers,
+                leadTime: estimate ? {
+                    estimatedDays: estimate.estimatedDays,
+                    confidence:    estimate.confidence,
+                    source:        estimate.source,
+                    factors:       estimate.factors,
+                    recommendation: estimate.recommendation,
+                    ...leadTimeStatus
+                } : null
+            });
+
+            console.log(`[WorkflowV2] REQUEST_SUBMITTED notification sent to L1 Approver ${approver.mailId} for ${savedRequest.mhRequestId}`);
+        }
     } catch (err) {
         console.error('[WorkflowV2] Failed to notify L1 Approver:', err.message);
-        // Non-fatal — request was saved, notification failure should not block the response
     }
 }
 
@@ -722,11 +744,13 @@ a{background:#B31818;color:#fff;padding:12px 28px;border-radius:8px;text-decorat
     try {
         const { id, engineerId } = req.params;
 
-        const engineer = await Employee.findById(engineerId);
+        const engQuery = mongoose.Types.ObjectId.isValid(engineerId) ? { _id: engineerId } : { employeeId: engineerId };
+        const engineer = await Employee.findOne(engQuery);
         if (!engineer) return res.status(404).send(errorPage('Engineer not found. The link may be invalid.'));
 
-        const request = await MHRequest.findByIdAndUpdate(
-            id,
+        const reqQuery = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { mhRequestId: id };
+        const request = await MHRequest.findOneAndUpdate(
+            reqQuery,
             {
                 $set: { assignedEngineer: engineer._id, assignedAt: new Date(), workflowStatus: 'Assigned' },
                 $push: { history: { action: 'Updated', date: new Date(), details: `Engineer ${engineer.employeeName} (${engineer.employeeId}) assigned via email link` } }
@@ -738,24 +762,29 @@ a{background:#B31818;color:#fff;padding:12px 28px;border-radius:8px;text-decorat
 
         // Notify engineer (non-blocking)
         if (process.env.SMTP_HOST && process.env.SMTP_USER && engineer.mailId) {
+            const port = parseInt(process.env.SMTP_PORT, 10) || 465;
+            const isSecure = process.env.SMTP_SECURE === 'true' || port === 465;
             const transporter = nodemailer.createTransport({
-                host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587,
-                secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+                host: process.env.SMTP_HOST,
+                port: port,
+                secure: isSecure,
+                auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
                 tls: { rejectUnauthorized: false }
             });
             const subject = `MH Request Assigned to You — ${request.mhRequestId}`;
             const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-              <div style="background:#B31818;color:#fff;padding:20px 24px;border-radius:8px 8px 0 0;"><h2 style="margin:0;font-size:18px;">MH Request Assigned to You</h2></div>
+              <div style="background:#B31818;color:#fff;padding:20px 24px;border-radius:8px 8px 0 0;"><h2 style="margin:0;font-size:18px;">MH Request Assignment Notification</h2></div>
               <div style="padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
                 <p>Dear <strong>${engineer.employeeName}</strong>,</p>
-                <p>You have been assigned to MH request <strong>${request.mhRequestId}</strong>.</p>
+                <p>For the MH request <strong>${request.mhRequestId}</strong>, you have been assigned as a PED engineer. Please check for the design and assign a designer.</p>
                 <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0;">
-                  <tr><td style="padding:8px;font-weight:600;background:#f8fafc;width:40%;">Handling Part</td><td style="padding:8px;">${request.handlingPartName}</td></tr>
+                  <tr><td style="padding:8px;font-weight:600;background:#f8fafc;width:40%;">Request ID</td><td style="padding:8px;">${request.mhRequestId}</td></tr>
+                  <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Handling Part</td><td style="padding:8px;">${request.handlingPartName}</td></tr>
                   <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Department</td><td style="padding:8px;">${request.departmentName}</td></tr>
                   <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Plant</td><td style="padding:8px;">${request.plantLocation}</td></tr>
-                  <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Problem</td><td style="padding:8px;">${request.problemStatement}</td></tr>
+                  <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Problem Statement</td><td style="padding:8px;">${request.problemStatement}</td></tr>
                 </table>
-                <a href="${portalUrl}/mh-requests" style="background:#B31818;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">View in Portal</a>
+                <a href="${portalUrl}/mh-requests" style="background:#B31818;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">Open Portal & Assign Designer</a>
                 <p style="margin-top:24px;color:#64748b;font-size:13px;">Regards,<br>TVS-PED Portal</p>
               </div></div>`;
 
@@ -771,6 +800,84 @@ a{background:#B31818;color:#fff;padding:12px 28px;border-radius:8px;text-decorat
     }
 };
 
+// @desc    Assign Designer to MH request (via PED Engineer)
+// @route   PATCH /api/asset-request/:id/assign-designer
+// @access  Private
+const assignDesigner = async (req, res) => {
+    try {
+        const { designerId } = req.body;
+        if (!designerId) return res.status(400).json({ message: 'designerId is required' });
+
+        const designer = await Employee.findById(designerId);
+        if (!designer) return res.status(404).json({ message: 'Designer not found' });
+
+        const request = await MHRequest.findByIdAndUpdate(
+            req.params.id,
+            {
+                $set: {
+                    assignedDesigner: designer._id,
+                    workflowState: 'DESIGN_IN_PROGRESS',
+                    currentStage: 3,
+                    status: 'Accepted'
+                },
+                $push: { history: { action: 'Updated', date: new Date(), details: `Designer ${designer.employeeName} (${designer.employeeId}) assigned by PED Engineer` } }
+            },
+            { new: true }
+        ).populate('assignedEngineer assignedDesigner approver');
+
+        if (!request) return res.status(404).json({ message: 'Request not found' });
+
+        // Send Email Notification to Designer
+        if (process.env.SMTP_HOST && process.env.SMTP_USER && designer.mailId) {
+            try {
+                const port = parseInt(process.env.SMTP_PORT, 10) || 465;
+                const isSecure = process.env.SMTP_SECURE === 'true' || port === 465;
+                const transporter = nodemailer.createTransport({
+                    host: process.env.SMTP_HOST,
+                    port: port,
+                    secure: isSecure,
+                    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+                    tls: { rejectUnauthorized: false }
+                });
+                const portalUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+                const subject = `Design Assignment — ${request.mhRequestId}`;
+                const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+                  <div style="background:#B31818;color:#fff;padding:20px 24px;border-radius:8px 8px 0 0;"><h2 style="margin:0;font-size:18px;">Design Assignment Notification</h2></div>
+                  <div style="padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
+                    <p>Dear <strong>${designer.employeeName}</strong>,</p>
+                    <p>For the MH request <strong>${request.mhRequestId}</strong>, the PED Engineer has chosen you to design the product. Please log in to the portal and begin your design work.</p>
+                    <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0;">
+                      <tr><td style="padding:8px;font-weight:600;background:#f8fafc;width:40%;">Request ID</td><td style="padding:8px;">${request.mhRequestId}</td></tr>
+                      <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Handling Part</td><td style="padding:8px;">${request.handlingPartName}</td></tr>
+                      <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Department</td><td style="padding:8px;">${request.departmentName}</td></tr>
+                      <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Plant Location</td><td style="padding:8px;">${request.plantLocation}</td></tr>
+                      <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Problem Statement</td><td style="padding:8px;">${request.problemStatement}</td></tr>
+                    </table>
+                    <a href="${portalUrl}/design-queue" style="background:#B31818;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">Open Design Queue</a>
+                    <p style="margin-top:24px;color:#64748b;font-size:13px;">Regards,<br>TVS-PED Portal</p>
+                  </div></div>`;
+
+                transporter.sendMail({ from: process.env.SMTP_USER, to: designer.mailId, subject, html })
+                    .then(() => {
+                        if (request.emailLog) {
+                            MHRequest.findByIdAndUpdate(request._id, {
+                                $push: { emailLog: { sentAt: new Date(), to: designer.mailId, cc: '', subject, body: html, status: 'Delivered' } }
+                            }).catch(() => {});
+                        }
+                    })
+                    .catch(e => console.error('[assignDesigner] Designer email failed:', e.message));
+            } catch (emailErr) {
+                console.error('[assignDesigner] Email send failed:', emailErr.message);
+            }
+        }
+
+        res.json(request);
+    } catch (err) {
+        console.error('Assign Designer Error:', err);
+        res.status(500).json({ message: 'Internal Server Error', error: err.message });
+    }
+};
+
 module.exports = {
     createMHRequest,
     getAllMHRequests,
@@ -779,6 +886,7 @@ module.exports = {
     deleteMHRequest,
     generateAssetForRequest,
     assignEngineer,
+    assignDesigner,
     addEmailLog,
     assignEngineerFromLink
 };
