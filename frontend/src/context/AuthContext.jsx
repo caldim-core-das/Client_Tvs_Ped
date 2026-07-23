@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import axios from 'axios';
+import api, { uploadApi } from '../api/axiosConfig';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const AuthContext = createContext();
@@ -39,38 +40,46 @@ export const AuthProvider = ({ children }) => {
             sessionStorage.removeItem('token');
         }
 
-        const interceptor = axios.interceptors.response.use(
-            (response) => response,
-            async (error) => {
-                const originalRequest = error.config;
-                // Only retry once, and only for TOKEN_EXPIRED — never for other errors
-                if (
-                    error.response?.status === 401 &&
-                    error.response?.data?.message === 'TOKEN_EXPIRED' &&
-                    !originalRequest._retry
-                ) {
-                    originalRequest._retry = true;
-                    try {
-                        const res = await axios.post(
-                            `${API_BASE_URL}/api/auth/refresh`,
-                            {},
-                            { withCredentials: true, _retry: true }
-                        );
-                        const newToken = res.data.token;
-                        setToken(newToken);
-                        originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
-                        return axios(originalRequest);
-                    } catch (refreshError) {
-                        logout();
-                        return Promise.reject(refreshError);
+        const setupInterceptor = (axiosInstance) => {
+            return axiosInstance.interceptors.response.use(
+                (response) => response,
+                async (error) => {
+                    const originalRequest = error.config;
+                    // Only retry once, and only for TOKEN_EXPIRED — never for other errors
+                    if (
+                        error.response?.status === 401 &&
+                        error.response?.data?.message === 'TOKEN_EXPIRED' &&
+                        !originalRequest._retry
+                    ) {
+                        originalRequest._retry = true;
+                        try {
+                            const res = await axios.post(
+                                `${API_BASE_URL}/api/auth/refresh`,
+                                {},
+                                { withCredentials: true, _retry: true }
+                            );
+                            const newToken = res.data.token;
+                            setToken(newToken);
+                            originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+                            return axiosInstance(originalRequest);
+                        } catch (refreshError) {
+                            logout();
+                            return Promise.reject(refreshError);
+                        }
                     }
+                    return Promise.reject(error);
                 }
-                return Promise.reject(error);
-            }
-        );
+            );
+        };
+
+        const globalInterceptor = setupInterceptor(axios);
+        const apiInterceptor = setupInterceptor(api);
+        const uploadApiInterceptor = setupInterceptor(uploadApi);
 
         return () => {
-            axios.interceptors.response.eject(interceptor);
+            axios.interceptors.response.eject(globalInterceptor);
+            api.interceptors.response.eject(apiInterceptor);
+            uploadApi.interceptors.response.eject(uploadApiInterceptor);
         };
     }, [token]);
 
@@ -109,6 +118,38 @@ export const AuthProvider = ({ children }) => {
         loadUser();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Background silent refresh before the token expires
+    useEffect(() => {
+        let refreshInterval;
+
+        if (isAuthenticated) {
+            // Token expires in 15 mins (900000ms), refresh it every 14 mins (840000ms)
+            const REFRESH_TIME = 14 * 60 * 1000;
+
+            refreshInterval = setInterval(async () => {
+                try {
+                    const res = await axios.post(
+                        `${API_BASE_URL}/api/auth/refresh`,
+                        {},
+                        { withCredentials: true }
+                    );
+                    const newToken = res.data.token;
+                    setToken(newToken);
+                    console.log('Token refreshed silently in the background');
+                } catch (error) {
+                    console.error('Background token refresh failed', error);
+                    // It will naturally fail and log out on the next request via interceptors
+                }
+            }, REFRESH_TIME);
+        }
+
+        return () => {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        };
+    }, [isAuthenticated]);
 
     const login = async (email, password) => {
         try {

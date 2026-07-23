@@ -6,47 +6,60 @@ const mongoose = require('mongoose');
  */
 const ROLE_PERMISSIONS = {
     'Admin': {
-        dashboard: true, assetRequest: true, requestTracker: true,
-        mhDevelopmentTracker: true, assetSummary: true, reports: true,
-        employeeMaster: true, vendorMaster: true, settings: true,
-        designQueue: true, checkerQueue: true, finalApprovalQueue: true
+        dashboard: true, mhRequest: true, allRequestsOverview: true,
+        mhDevelopment: true, projectPlanTracking: true,
+        l1ApprovalQueue: true, designQueue: true, checkerQueue: true, finalApproval: true,
+        assetManagement: true, assetSummary: true, designLibrary: true,
+        employeeMaster: true, vendorMaster: true, vendorScoring: true, vendorLoading: true,
+        settings: true
     },
     'Requester': {
-        dashboard: true, assetRequest: true, requestTracker: true,
-        mhDevelopmentTracker: false, assetSummary: false, reports: false,
-        employeeMaster: false, vendorMaster: false, settings: false,
-        designQueue: false, checkerQueue: false, finalApprovalQueue: false
+        dashboard: true, mhRequest: true, allRequestsOverview: true,
+        mhDevelopment: false, projectPlanTracking: false,
+        l1ApprovalQueue: false, designQueue: false, checkerQueue: false, finalApproval: false,
+        assetManagement: false, assetSummary: false, designLibrary: false,
+        employeeMaster: false, vendorMaster: false, vendorScoring: false, vendorLoading: false,
+        settings: false
     },
     'L1 Approver': {
-        dashboard: true, assetRequest: true, requestTracker: true,
-        mhDevelopmentTracker: true, assetSummary: false, reports: false,
-        employeeMaster: false, vendorMaster: false, settings: false,
-        designQueue: false, checkerQueue: false, finalApprovalQueue: false
+        dashboard: true, mhRequest: true, allRequestsOverview: true,
+        mhDevelopment: true, projectPlanTracking: true,
+        l1ApprovalQueue: true, designQueue: false, checkerQueue: false, finalApproval: false,
+        assetManagement: false, assetSummary: false, designLibrary: false,
+        employeeMaster: false, vendorMaster: false, vendorScoring: false, vendorLoading: false,
+        settings: false
     },
     'PED Engineer': {
-        dashboard: true, assetRequest: false, requestTracker: true,
-        mhDevelopmentTracker: true, assetSummary: true, reports: false,
-        employeeMaster: false, vendorMaster: false, settings: false,
-        designQueue: false, checkerQueue: false, finalApprovalQueue: false
+        dashboard: true, mhRequest: false, allRequestsOverview: true,
+        mhDevelopment: true, projectPlanTracking: true,
+        l1ApprovalQueue: false, designQueue: false, checkerQueue: false, finalApproval: false,
+        assetManagement: true, assetSummary: true, designLibrary: true,
+        employeeMaster: false, vendorMaster: false, vendorScoring: false, vendorLoading: false,
+        settings: false
     },
-    // ── Enterprise Workflow v2 Roles ────────────────────────────────────────────
     'Designer': {
-        dashboard: true, assetRequest: false, requestTracker: true,
-        mhDevelopmentTracker: true, assetSummary: false, reports: false,
-        employeeMaster: false, vendorMaster: false, settings: false,
-        designQueue: true, checkerQueue: false, finalApprovalQueue: false
+        dashboard: true, mhRequest: false, allRequestsOverview: true,
+        mhDevelopment: true, projectPlanTracking: true,
+        l1ApprovalQueue: false, designQueue: true, checkerQueue: false, finalApproval: false,
+        assetManagement: false, assetSummary: false, designLibrary: true,
+        employeeMaster: false, vendorMaster: false, vendorScoring: false, vendorLoading: false,
+        settings: false
     },
     'Checker': {
-        dashboard: true, assetRequest: false, requestTracker: true,
-        mhDevelopmentTracker: false, assetSummary: false, reports: false,
-        employeeMaster: false, vendorMaster: false, settings: false,
-        designQueue: false, checkerQueue: true, finalApprovalQueue: false
+        dashboard: true, mhRequest: false, allRequestsOverview: true,
+        mhDevelopment: true, projectPlanTracking: true,
+        l1ApprovalQueue: false, designQueue: false, checkerQueue: true, finalApproval: false,
+        assetManagement: false, assetSummary: false, designLibrary: true,
+        employeeMaster: false, vendorMaster: false, vendorScoring: false, vendorLoading: false,
+        settings: false
     },
     'Final Approver': {
-        dashboard: true, assetRequest: false, requestTracker: true,
-        mhDevelopmentTracker: true, assetSummary: false, reports: true,
-        employeeMaster: false, vendorMaster: false, settings: false,
-        designQueue: false, checkerQueue: false, finalApprovalQueue: true
+        dashboard: true, mhRequest: false, allRequestsOverview: true,
+        mhDevelopment: true, projectPlanTracking: true,
+        l1ApprovalQueue: false, designQueue: false, checkerQueue: false, finalApproval: true,
+        assetManagement: false, assetSummary: false, designLibrary: true,
+        employeeMaster: false, vendorMaster: false, vendorScoring: false, vendorLoading: false,
+        settings: false
     }
 };
 
@@ -76,18 +89,22 @@ const userSchema = mongoose.Schema({
     },
     permissions: {
         dashboard:            { type: Boolean, default: true },
-        assetRequest:         { type: Boolean, default: true },
-        requestTracker:       { type: Boolean, default: false },
-        mhDevelopmentTracker: { type: Boolean, default: false },
-        assetSummary:         { type: Boolean, default: false },
-        reports:              { type: Boolean, default: false },
-        employeeMaster:       { type: Boolean, default: false },
-        vendorMaster:         { type: Boolean, default: false },
-        settings:             { type: Boolean, default: false },
-        // ── v2 workflow permissions
+        mhRequest:            { type: Boolean, default: true },
+        allRequestsOverview:  { type: Boolean, default: false },
+        mhDevelopment:        { type: Boolean, default: false },
+        projectPlanTracking:  { type: Boolean, default: false },
+        l1ApprovalQueue:      { type: Boolean, default: false },
         designQueue:          { type: Boolean, default: false },
         checkerQueue:         { type: Boolean, default: false },
-        finalApprovalQueue:   { type: Boolean, default: false }
+        finalApproval:        { type: Boolean, default: false },
+        assetManagement:      { type: Boolean, default: false },
+        assetSummary:         { type: Boolean, default: false },
+        designLibrary:        { type: Boolean, default: false },
+        employeeMaster:       { type: Boolean, default: false },
+        vendorMaster:         { type: Boolean, default: false },
+        vendorScoring:        { type: Boolean, default: false },
+        vendorLoading:        { type: Boolean, default: false },
+        settings:             { type: Boolean, default: false }
     },
     status: {
         type: String,

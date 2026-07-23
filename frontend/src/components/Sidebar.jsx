@@ -182,6 +182,7 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
         workflowItems.push({
             name: 'L1 Approval Queue',  short: 'L1 Queue', icon: Inbox,
             path: '/workflow-queue/l1',
+            permission: 'l1ApprovalQueue',
             badge: queueCounts.l1,      badgeColor: '#f59e0b'
         });
     }
@@ -189,6 +190,7 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
         workflowItems.push({
             name: 'Design Queue',  short: 'Design Q', icon: Pencil,
             path: '/design-queue',
+            permission: 'designQueue',
             badge: queueCounts.design,  badgeColor: '#7c3aed'
         });
     }
@@ -196,6 +198,7 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
         workflowItems.push({
             name: 'Checker Queue',  short: 'Check Q', icon: CheckSquare,
             path: '/checker-queue',
+            permission: 'checkerQueue',
             badge: queueCounts.checker, badgeColor: '#0891b2'
         });
     }
@@ -203,6 +206,7 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
         workflowItems.push({
             name: 'Final Approval',  short: 'Final Q', icon: Award,
             path: '/final-approval-queue',
+            permission: 'finalApproval',
             badge: queueCounts.final,   badgeColor: '#16a34a'
         });
     }
@@ -210,23 +214,23 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
     const NAV_SECTIONS = [
         { label: 'OPERATIONS', items: [
             { name: 'Dashboard',        short: 'Dashboard',  icon: Home,          path: '/',                        permission: 'dashboard' },
-            { name: 'MH Request',       short: 'MH Request', icon: FileText,      path: '/mh-requests',             permission: 'assetRequest' },
-            { name: 'All Requests Overview', short: 'Overview',  icon: ClipboardList, path: '/request-tracker',         permission: 'requestTracker' },
-            { name: 'MH Development',   short: 'MH Dev',     icon: TrendingUp,    path: '/mh-development-tracker',  permission: 'mhDevelopmentTracker' },
-            { name: 'Project Plan Tracking', short: 'Plan Track', icon: LayoutIcon, path: '/project-plan-model', permission: 'mhDevelopmentTracker' },
+            { name: 'MH Request',       short: 'MH Request', icon: FileText,      path: '/mh-requests',             permission: 'mhRequest' },
+            { name: 'All Requests Overview', short: 'Overview',  icon: ClipboardList, path: '/request-tracker',         permission: 'allRequestsOverview' },
+            { name: 'MH Development',   short: 'MH Dev',     icon: TrendingUp,    path: '/mh-development-tracker',  permission: 'mhDevelopment' },
+            { name: 'Project Plan Tracking', short: 'Plan Track', icon: LayoutIcon, path: '/project-plan-model', permission: 'projectPlanTracking' },
         ]},
         // Workflow queues — only shown if user has at least one queue
         ...(workflowItems.length > 0 ? [{ label: 'WORKFLOW', items: workflowItems }] : []),
         { label: 'ASSETS', items: [
-            { name: 'Asset Management', short: 'Assets',     icon: Package,       path: '/asset-management-update', permission: 'assetSummary' },
+            { name: 'Asset Management', short: 'Assets',     icon: Package,       path: '/asset-management-update', permission: 'assetManagement' },
             { name: 'Asset Summary',    short: 'Summary',    icon: ClipboardList, path: '/asset-summary',           permission: 'assetSummary' },
-            { name: 'Design Library',   short: 'Library',    icon: Palette,       path: '/design-library',          permission: 'assetSummary' },
+            { name: 'Design Library',   short: 'Library',    icon: Palette,       path: '/design-library',          permission: 'designLibrary' },
         ]},
         { label: 'MANAGEMENT', items: [
             { name: 'Employee Master',  short: 'Employees',  icon: Users,         path: '/employee-master',         permission: 'employeeMaster' },
             { name: 'Vendor Master',    short: 'Vendors',    icon: Layers,        path: '/vendor-master',           permission: 'vendorMaster' },
-            { name: 'Vendor Scoring',   short: 'Scoring',    icon: PieChart,      path: '/vendor-master/scoring',   permission: 'vendorMaster' },
-            { name: 'Vendor Loading',   short: 'Loading',    icon: BarChart2,     path: '/vendor-master/loading',   permission: 'vendorMaster' },
+            { name: 'Vendor Scoring',   short: 'Scoring',    icon: PieChart,      path: '/vendor-master/scoring',   permission: 'vendorScoring' },
+            { name: 'Vendor Loading',   short: 'Loading',    icon: BarChart2,     path: '/vendor-master/loading',   permission: 'vendorLoading' },
         ]},
         { label: 'SYSTEM', items: [
             { name: 'Settings',         short: 'Settings',   icon: Settings,      path: '/settings',                permission: 'settings' },

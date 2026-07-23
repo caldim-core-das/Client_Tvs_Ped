@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Switch } from 'antd';
-import { Save, Eye, EyeOff, ArrowLeft, AlertCircle, Shield, Key, Lock, LayoutDashboard, FilePlus, List, BarChart3, Users, Truck, FileBarChart, Settings, TrendingUp, CheckCircle2, XCircle, RefreshCw, Copy } from 'lucide-react';
+import { Save, Eye, EyeOff, ArrowLeft, AlertCircle, Shield, Key, Lock, Settings, RefreshCw, CheckCircle2, XCircle, Home, FileText, ClipboardList, TrendingUp, Layout, Inbox, PenTool, CheckSquare, Award, Package, Palette, Users, Layers, PieChart, BarChart2, FilePlus } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useDispatch, useSelector } from 'react-redux';
 import api from '../../api/axiosConfig';
@@ -18,13 +18,26 @@ const debounce = (func, delay) => {
 };
 
 const permissionList = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, description: 'View dashboard overview' },
-    { id: 'assetRequest', label: 'Asset Request', icon: <FilePlus size={20} />, description: 'Create and manage requests' },
-    { id: 'requestTracker', label: 'Request Tracker', icon: <List size={20} />, description: 'Track request status' },
-    { id: 'assetSummary', label: 'Asset Summary', icon: <BarChart3 size={20} />, description: 'View asset analytics' },
+    { id: 'dashboard', label: 'Dashboard', icon: <Home size={20} />, description: 'View dashboard overview' },
+    { id: 'mhRequest', label: 'MH Request', icon: <FileText size={20} />, description: 'Material Handling Request' },
+    { id: 'allRequestsOverview', label: 'All Requests Overview', icon: <ClipboardList size={20} />, description: 'Overview of all requests' },
+    { id: 'mhDevelopment', label: 'MH Development', icon: <TrendingUp size={20} />, description: 'Development tracking' },
+    { id: 'projectPlanTracking', label: 'Project Plan Tracking', icon: <Layout size={20} />, description: 'Project Plan Tracking' },
+    
+    { id: 'l1ApprovalQueue', label: 'L1 Approval Queue', icon: <Inbox size={20} />, description: 'L1 Approvals' },
+    { id: 'designQueue', label: 'Design Queue', icon: <PenTool size={20} />, description: 'Design Queue' },
+    { id: 'checkerQueue', label: 'Checker Queue', icon: <CheckSquare size={20} />, description: 'Checker Queue' },
+    { id: 'finalApproval', label: 'Final Approval', icon: <Award size={20} />, description: 'Final Approval' },
+    
+    { id: 'assetManagement', label: 'Asset Management', icon: <Package size={20} />, description: 'Manage Assets' },
+    { id: 'assetSummary', label: 'Asset Summary', icon: <ClipboardList size={20} />, description: 'Asset Summary' },
+    { id: 'designLibrary', label: 'Design Library', icon: <Palette size={20} />, description: 'Design Library' },
+    
     { id: 'employeeMaster', label: 'Employee Master', icon: <Users size={20} />, description: 'Manage employees' },
-    { id: 'vendorMaster', label: 'Vendor Master', icon: <Truck size={20} />, description: 'Manage vendors' },
-    { id: 'mhDevelopmentTracker', label: 'MH Dev Tracker', icon: <TrendingUp size={20} />, description: 'Track MH development progress' },
+    { id: 'vendorMaster', label: 'Vendor Master', icon: <Layers size={20} />, description: 'Manage vendors' },
+    { id: 'vendorScoring', label: 'Vendor Scoring', icon: <PieChart size={20} />, description: 'Vendor Scoring' },
+    { id: 'vendorLoading', label: 'Vendor Loading', icon: <BarChart2 size={20} />, description: 'Vendor Loading' },
+    
     { id: 'settings', label: 'Settings', icon: <Settings size={20} />, description: 'System configuration' }
 ];
 
@@ -86,12 +99,21 @@ const EmployeeForm = ({ mode = 'add' }) => {
     // Permissions state
     const [permissions, setPermissions] = useState({
         dashboard: true,
-        assetRequest: false,
-        requestTracker: false,
+        mhRequest: false,
+        allRequestsOverview: false,
+        mhDevelopment: false,
+        projectPlanTracking: false,
+        l1ApprovalQueue: false,
+        designQueue: false,
+        checkerQueue: false,
+        finalApproval: false,
+        assetManagement: false,
         assetSummary: false,
+        designLibrary: false,
         employeeMaster: false,
         vendorMaster: false,
-        mhDevelopmentTracker: false,
+        vendorScoring: false,
+        vendorLoading: false,
         settings: false
     });
 
@@ -700,7 +722,11 @@ const EmployeeForm = ({ mode = 'add' }) => {
                             <button
                                 type="button"
                                 onClick={handleGrantAllPermissions}
-                                className="text-sm px-3 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                                className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${
+                                    permissionList.every(p => permissions[p.id])
+                                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
                             >
                                 Grant All
                             </button>
