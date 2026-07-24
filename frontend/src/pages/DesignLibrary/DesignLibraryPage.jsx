@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Card, Tag, Badge, message, Typography, Button, Space, Popconfirm, Modal, Form, Input, Switch, InputNumber } from 'antd';
 import { Layers, Eye, Edit2, Trash2, Plus, MinusCircle } from 'lucide-react';
 import axios from 'axios';
+import api from '../../api/axiosConfig';
 
 const { Title, Text } = Typography;
 
