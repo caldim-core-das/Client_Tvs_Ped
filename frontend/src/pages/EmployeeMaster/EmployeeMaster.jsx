@@ -17,7 +17,9 @@ import 'react-data-grid/lib/styles.css';
 const { confirm } = Modal;
 
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '') + '/api';
+import { getApiBaseUrl } from '../../api/axiosConfig';
+
+const API_BASE_URL = getApiBaseUrl();
 const DEPT_API = API_BASE_URL + '/departments';
 
 const EmployeeMaster = () => {
@@ -267,7 +269,7 @@ const EmployeeMaster = () => {
 
     const handleConfirmImport = async () => {
         try {
-            const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '') + '/api';
+            const API_BASE_URL = getApiBaseUrl();
             const token = sessionStorage.getItem('token');
 
             let successCount = 0;

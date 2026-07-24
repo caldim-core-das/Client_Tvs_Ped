@@ -9,7 +9,9 @@ import * as XLSX from 'xlsx';
 import KPISettingsSection from './KPISettingsSection';
 import NotificationLogSection from './NotificationLogSection';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+import { getApiBaseUrl } from '../api/axiosConfig';
+
+const API_BASE_URL = getApiBaseUrl();
 
 const ROLE_OPTIONS = [
     { value: 'Requester',    label: 'Requester',    color: 'blue' },

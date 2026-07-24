@@ -9,7 +9,9 @@ import FreezeToolbar from '../components/FreezeToolbar';
 import FrozenRowsDataGrid from '../components/FrozenRowsDataGrid';
 import ColumnCustomizer from '../components/ColumnCustomizer';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+import { getApiBaseUrl } from '../api/axiosConfig';
+
+const API_BASE_URL = getApiBaseUrl();
 
 const AssetManagementUpdate = () => {
     const { user } = useAuth();

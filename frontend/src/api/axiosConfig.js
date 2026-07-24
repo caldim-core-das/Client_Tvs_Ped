@@ -1,15 +1,25 @@
 import axios from 'axios';
 
-const getApiBaseUrl = () => {
+export const getApiBaseUrl = () => {
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        return '/Tvs/api';
+    }
     if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
     if (import.meta.env.VITE_API_BASE_URL) {
         const base = import.meta.env.VITE_API_BASE_URL;
         return base.endsWith('/api') ? base : `${base}/api`;
     }
+    return 'http://localhost:5000/api';
+};
+
+export const getApiServerUrl = () => {
     if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        return '/Tvs/api';
+        return '/Tvs';
     }
-    return '/api';
+    if (import.meta.env.VITE_API_BASE_URL) {
+        return import.meta.env.VITE_API_BASE_URL.replace(/\/api$/, '');
+    }
+    return 'http://localhost:5000';
 };
 
 const serverUrl = getApiBaseUrl();
@@ -58,7 +68,7 @@ const handle401Error = (error) => {
         if (typeof window !== 'undefined' && !window.location.pathname.endsWith('/login')) {
             console.warn('Session expired or unauthorized token. Redirecting to login...');
             sessionStorage.removeItem('token');
-            sessionStorage.removeItem('user');
+            sessionStorage.removeItem('sessionId');
             const basePath = import.meta.env.VITE_BASE_URL || '/Tvs/';
             window.location.href = basePath.endsWith('/') ? `${basePath}login` : `${basePath}/login`;
         }

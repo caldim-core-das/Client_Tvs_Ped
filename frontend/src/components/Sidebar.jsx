@@ -12,6 +12,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Tooltip } from 'antd';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { getApiBaseUrl } from '../api/axiosConfig';
 
 /* ══════════════════════════════════════════════════
    COLOR THEMES  (8 total: 6 dark + white + black)
@@ -98,11 +99,11 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
         const role = user.role;
         const token = sessionStorage.getItem('token');
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const base = import.meta.env.VITE_API_BASE_URL || '';
 
         const fetchCount = async (queueType) => {
             try {
-                const res = await fetch(`${base}/api/workflow/queue/${queueType}`, { headers });
+                const base = getApiBaseUrl();
+                const res = await fetch(`${base}/workflow/queue/${queueType}`, { headers });
                 if (!res.ok) return 0;
                 const data = await res.json();
                 return data.count ?? 0;

@@ -5,7 +5,9 @@ import { Spin, message } from 'antd';
 import { useAuth } from '../context/AuthContext';
 import dayjs from 'dayjs';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+import { getApiBaseUrl } from '../api/axiosConfig';
+
+const API_BASE_URL = getApiBaseUrl();
 
 const NotificationLogSection = () => {
     const { user } = useAuth();

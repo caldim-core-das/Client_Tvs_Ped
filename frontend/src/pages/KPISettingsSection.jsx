@@ -3,7 +3,9 @@ import axios from 'axios';
 import { Target, Save } from 'lucide-react';
 import { message } from 'antd';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+import { getApiBaseUrl } from '../api/axiosConfig';
+
+const API_BASE_URL = getApiBaseUrl();
 
 const KPISettingsSection = () => {
     const [loading, setLoading] = useState(false);
