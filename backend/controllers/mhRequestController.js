@@ -239,16 +239,18 @@ const createMHRequest = async (req, res) => {
         // Non-blocking — failure here does not affect the saved request response.
         (async () => {
             try {
+                // Use the logged-in user's real employee name (not the form's userName field)
+                const submitterName = req.user.employeeId?.employeeName || req.user.email || userName;
                 const historyEntry = {
                     stage:     'REQUEST',
                     state:     'SUBMITTED',
                     action:    'SUBMITTED',
                     actor:     req.user._id,
-                    actorName: userName,
+                    actorName: submitterName,
                     actorRole: req.user.role,
-                    comment:   'Request submitted',
+                    comment:   `MH Request submitted for ${userName} — Department: ${departmentName}, Plant: ${plantLocation}`,
                     timestamp: new Date(),
-                    metadata:  {}
+                    metadata:  { requestedFor: userName, department: departmentName, plant: plantLocation }
                 };
 
                 await MHRequest.findByIdAndUpdate(savedRequest._id, {
@@ -637,11 +639,25 @@ const assignEngineer = async (req, res) => {
         const engineer = await Employee.findById(engineerId);
         if (!engineer) return res.status(404).json({ message: 'Engineer not found' });
 
+        const assignerName = req.user?.employeeId?.employeeName || req.user?.email || 'L1 Approver';
         const request = await MHRequest.findByIdAndUpdate(
             req.params.id,
             {
                 $set: { assignedEngineer: engineer._id, assignedAt: new Date(), workflowStatus: 'Assigned' },
-                $push: { history: { action: 'Updated', date: new Date(), details: `Engineer ${engineer.employeeName} (${engineer.employeeId}) assigned` } }
+                $push: {
+                    history: { action: 'Updated', date: new Date(), details: `Engineer ${engineer.employeeName} (${engineer.employeeId}) assigned` },
+                    stageHistory: {
+                        stage:     'L1_APPROVAL',
+                        state:     'L1_APPROVED',
+                        action:    'PED_ENGINEER_ASSIGNED',
+                        actor:     req.user?._id || null,
+                        actorName: assignerName,
+                        actorRole: req.user?.role || 'L1 Approver',
+                        comment:   `PED Engineer ${engineer.employeeName} (${engineer.employeeId}) was assigned to this request.`,
+                        timestamp: new Date(),
+                        metadata:  { assignedEngineer: engineer._id, engineerName: engineer.employeeName, engineerEmpId: engineer.employeeId }
+                    }
+                }
             },
             { new: true }
         )
@@ -753,7 +769,20 @@ a{background:#B31818;color:#fff;padding:12px 28px;border-radius:8px;text-decorat
             reqQuery,
             {
                 $set: { assignedEngineer: engineer._id, assignedAt: new Date(), workflowStatus: 'Assigned' },
-                $push: { history: { action: 'Updated', date: new Date(), details: `Engineer ${engineer.employeeName} (${engineer.employeeId}) assigned via email link` } }
+                $push: {
+                    history: { action: 'Updated', date: new Date(), details: `Engineer ${engineer.employeeName} (${engineer.employeeId}) assigned via email link` },
+                    stageHistory: {
+                        stage:     'L1_APPROVAL',
+                        state:     'L1_APPROVED',
+                        action:    'PED_ENGINEER_ASSIGNED',
+                        actor:     null,
+                        actorName: 'L1 Approver',
+                        actorRole: 'L1 Approver',
+                        comment:   `PED Engineer ${engineer.employeeName} (${engineer.employeeId}) was assigned via approval email link.`,
+                        timestamp: new Date(),
+                        metadata:  { assignedEngineer: engineer._id, engineerName: engineer.employeeName, engineerEmpId: engineer.employeeId, source: 'email_link' }
+                    }
+                }
             },
             { new: true }
         );
@@ -776,7 +805,7 @@ a{background:#B31818;color:#fff;padding:12px 28px;border-radius:8px;text-decorat
               <div style="background:#B31818;color:#fff;padding:20px 24px;border-radius:8px 8px 0 0;"><h2 style="margin:0;font-size:18px;">MH Request Assignment Notification</h2></div>
               <div style="padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
                 <p>Dear <strong>${engineer.employeeName}</strong>,</p>
-                <p>For the MH request <strong>${request.mhRequestId}</strong>, you have been assigned as a PED engineer. Please check for the design and assign a designer.</p>
+                <p>For the MH request <strong>${request.mhRequestId}</strong>, you have been assigned as a PED engineer. Please log in to the portal to check for the design and assign a designer.</p>
                 <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0;">
                   <tr><td style="padding:8px;font-weight:600;background:#f8fafc;width:40%;">Request ID</td><td style="padding:8px;">${request.mhRequestId}</td></tr>
                   <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Handling Part</td><td style="padding:8px;">${request.handlingPartName}</td></tr>
@@ -820,7 +849,20 @@ const assignDesigner = async (req, res) => {
                     currentStage: 3,
                     status: 'Accepted'
                 },
-                $push: { history: { action: 'Updated', date: new Date(), details: `Designer ${designer.employeeName} (${designer.employeeId}) assigned by PED Engineer` } }
+                $push: {
+                    history: { action: 'Updated', date: new Date(), details: `Designer ${designer.employeeName} (${designer.employeeId}) assigned by PED Engineer` },
+                    stageHistory: {
+                        stage: 'DESIGN',
+                        state: 'DESIGN_IN_PROGRESS',
+                        action: 'DESIGNER_ASSIGNED',
+                        actor: req.user?._id || null,
+                        actorName: req.user?.employeeId?.employeeName || req.user?.email || 'PED Engineer',
+                        actorRole: req.user?.role || 'PED Engineer',
+                        comment: `Designer ${designer.employeeName} (${designer.employeeId}) was chosen for this design task. Design work is now in progress.`,
+                        timestamp: new Date(),
+                        metadata: { assignedDesigner: designer._id, designerName: designer.employeeName, designerEmpId: designer.employeeId }
+                    }
+                }
             },
             { new: true }
         ).populate('assignedEngineer assignedDesigner approver');
@@ -845,7 +887,7 @@ const assignDesigner = async (req, res) => {
                   <div style="background:#B31818;color:#fff;padding:20px 24px;border-radius:8px 8px 0 0;"><h2 style="margin:0;font-size:18px;">Design Assignment Notification</h2></div>
                   <div style="padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
                     <p>Dear <strong>${designer.employeeName}</strong>,</p>
-                    <p>For the MH request <strong>${request.mhRequestId}</strong>, the PED Engineer has chosen you to design the product. Please log in to the portal and begin your design work.</p>
+                    <p>For the MH request <strong>${request.mhRequestId}</strong>, the PED Engineer has chosen you to design the product. Please log in to the portal to begin your design work.</p>
                     <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0;">
                       <tr><td style="padding:8px;font-weight:600;background:#f8fafc;width:40%;">Request ID</td><td style="padding:8px;">${request.mhRequestId}</td></tr>
                       <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Handling Part</td><td style="padding:8px;">${request.handlingPartName}</td></tr>
