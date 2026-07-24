@@ -9,7 +9,7 @@ import * as XLSX from 'xlsx';
 import KPISettingsSection from './KPISettingsSection';
 import NotificationLogSection from './NotificationLogSection';
 
-import { getApiBaseUrl } from '../api/axiosConfig';
+import api, { getApiBaseUrl } from '../api/axiosConfig';
 
 const API_BASE_URL = getApiBaseUrl();
 

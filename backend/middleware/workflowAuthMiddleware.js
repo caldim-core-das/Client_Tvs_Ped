@@ -62,8 +62,10 @@ const STATE_TO_STAGE = {
  */
 const requireWorkflowRole = (...roles) => (req, res, next) => {
     if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
-    if (req.user.role === 'Admin' || req.user.role === 'System Admin') return next();
-    if (!roles.includes(req.user.role)) {
+    const userRole = (req.user.role || '').trim().toLowerCase();
+    if (userRole === 'admin' || userRole === 'system admin' || userRole.includes('admin')) return next();
+    const allowedLower = roles.map(r => r.toLowerCase());
+    if (!allowedLower.includes(userRole)) {
         return res.status(403).json({
             message: `Role '${req.user.role}' is not permitted to perform this action. Required: ${roles.join(' or ')}`
         });
