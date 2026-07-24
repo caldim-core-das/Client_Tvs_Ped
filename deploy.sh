@@ -18,7 +18,7 @@ npm run install-all || { echo "❌ Dependencies installation failed! Exiting..."
 echo "📌 [3/5] Compiling React frontend with '/Tvs/' base path..."
 cd frontend
 rm -rf dist_tmp
-VITE_BASE_URL=/Tvs/ VITE_API_BASE_URL=/Tvs npm run build -- --outDir dist_tmp || { echo "❌ Frontend build failed! Exiting..."; exit 1; }
+VITE_BASE_URL=/Tvs/ VITE_API_BASE_URL=/Tvs VITE_API_URL=/Tvs/api npm run build -- --outDir dist_tmp || { echo "❌ Frontend build failed! Exiting..."; exit 1; }
 
 # Synchronize physical subdirectory structure in staging build
 echo "📌 [4/5] Syncing compiled assets to physical subdirectory '/Tvs'..."

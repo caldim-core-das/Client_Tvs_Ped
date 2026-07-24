@@ -271,7 +271,7 @@ const MHDevelopmentTracker = () => {
 
     const handleDownloadDrawing = (drawingUrl, fileName) => {
         if (!drawingUrl) return;
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? '/Tvs' : 'http://localhost:5000');
         let normalizedUrl = drawingUrl.replace(/\\/g, '/');
         if (normalizedUrl.startsWith('/')) normalizedUrl = normalizedUrl.slice(1);
         const fullUrl = `${API_BASE_URL.replace(/\/$/, '')}/${normalizedUrl}`;
