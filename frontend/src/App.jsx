@@ -35,6 +35,8 @@ import AssetSummary from './pages/AssetSummary';
 import AssetManagementUpdate from './pages/AssetManagementUpdate';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -75,6 +77,8 @@ function App() {
           {/* ── Public landing page (no auth required) ── */}
           <Route path="/landing" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
 
           {/* Estimation Module */}
           <Route path="/estimation" element={
