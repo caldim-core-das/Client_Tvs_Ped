@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Switch } from 'antd';
-import { Save, Eye, EyeOff, ArrowLeft, AlertCircle, Shield, Key, Lock, Settings, RefreshCw, CheckCircle2, XCircle, Home, FileText, ClipboardList, TrendingUp, Layout, Inbox, PenTool, CheckSquare, Award, Package, Palette, Users, Layers, PieChart, BarChart2, FilePlus } from 'lucide-react';
+import { Save, Eye, EyeOff, ArrowLeft, AlertCircle, Shield, Key, Lock, Settings, RefreshCw, CheckCircle2, XCircle, Home, FileText, ClipboardList, TrendingUp, Layout, Inbox, PenTool, CheckSquare, Award, Package, Palette, Users, Layers, PieChart, BarChart2, FilePlus, Send } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useDispatch, useSelector } from 'react-redux';
 import api from '../../api/axiosConfig';
@@ -126,6 +126,50 @@ const EmployeeForm = ({ mode = 'add' }) => {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     // Password Strength & Generation Logic
+    const [sendingEmail, setSendingEmail] = useState(false);
+
+    const handleSendPasswordEmail = async () => {
+        if (!formData.mailId) {
+            toast.error('Please enter an email address first');
+            return;
+        }
+        if (!formData.password || formData.password === '********') {
+            toast.error('Please enter or generate a password first');
+            return;
+        }
+        
+        setSendingEmail(true);
+        try {
+            const body = `
+                <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+                    <h2 style="color: #d32f2f;">Welcome to TVS Portal</h2>
+                    <p>Hi ${formData.employeeName || 'Employee'},</p>
+                    <p>Your account credentials have been set up for the TVS portal.</p>
+                    <p><strong>Login Details:</strong></p>
+                    <ul>
+                        <li><strong>Employee ID:</strong> ${formData.employeeId || 'N/A'}</li>
+                        <li><strong>Email ID:</strong> ${formData.mailId}</li>
+                        <li><strong>Password:</strong> ${formData.password}</li>
+                    </ul>
+                    <p>Please log in using these credentials. We recommend changing your password after your first login.</p>
+                    <br/>
+                    <p>Best regards,<br/>TVS Admin Team</p>
+                </div>
+            `;
+            
+            await api.post('/email/send', {
+                to: formData.mailId,
+                subject: 'Your TVS Portal Login Credentials',
+                body: body
+            });
+            toast.success('Password sent to employee successfully!');
+        } catch (error) {
+            toast.error('Failed to send email');
+        } finally {
+            setSendingEmail(false);
+        }
+    };
+
     const calculateStrength = (pass) => {
         if (!pass) return 0;
         let strength = 0;
@@ -257,6 +301,8 @@ const EmployeeForm = ({ mode = 'add' }) => {
                     </div>
                 </div>
             </div>
+
+
         </div>
     );
 
@@ -790,6 +836,19 @@ const EmployeeForm = ({ mode = 'add' }) => {
                         disabled={loading}
                     >
                         Cancel
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleSendPasswordEmail}
+                        disabled={sendingEmail || !formData.password || formData.password === '********'}
+                        className="flex items-center gap-2 bg-blue-50 text-blue-600 px-5 py-2.5 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50 font-medium"
+                    >
+                        {sendingEmail ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        ) : (
+                            <Send size={18} />
+                        )}
+                        {sendingEmail ? 'Sending...' : 'Send Password via Email'}
                     </button>
                     <button
                         type="submit"
