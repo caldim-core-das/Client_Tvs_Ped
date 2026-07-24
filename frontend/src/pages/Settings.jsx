@@ -54,7 +54,7 @@ const Settings = () => {
 
     const fetchExistingSettings = async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/report-settings`);
+            const response = await api.get('/api/report-settings');
             if (response.data.success && response.data.data) {
                 const { frequency: freq, reportType: type, recipients } = response.data.data;
                 if (freq) setFrequency(freq);
@@ -68,7 +68,7 @@ const Settings = () => {
 
     const fetchEmployees = async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/employees`);
+            const response = await api.get('/api/employees');
             if (response.data.success) {
                 setEmployees(response.data.data);
             }
@@ -83,15 +83,11 @@ const Settings = () => {
     const fetchUsers = async () => {
         setUsersLoading(true);
         try {
-            const usersRes = await axios.get(`${API_BASE_URL}/api/users`, {
-                headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-            });
+            const usersRes = await api.get('/api/users');
             setUsers(usersRes.data.data || []);
             
             try {
-                const rolesRes = await axios.get(`${API_BASE_URL}/api/roles`, {
-                    headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                });
+                const rolesRes = await api.get('/api/roles');
                 setRoles(rolesRes.data || []);
             } catch (err) {
                 console.error('Failed to load roles', err);
@@ -106,7 +102,7 @@ const Settings = () => {
     const handleRoleChange = async (userId, newRole) => {
         setRoleUpdating(prev => ({ ...prev, [userId]: true }));
         try {
-            const response = await axios.patch(`${API_BASE_URL}/api/users/${userId}/role`, { role: newRole });
+            const response = await api.patch(`/api/users/${userId}/role`, { role: newRole });
             if (response.data.success) {
                 setUsers(prev => prev.map(u => u._id === userId ? { ...u, role: newRole } : u));
                 message.success(`Role updated to "${newRole}" successfully`);
@@ -189,7 +185,7 @@ const Settings = () => {
 
         try {
             setLoading(true);
-            const response = await axios.post(`${API_BASE_URL}/api/report-settings`, {
+            const response = await api.post('/report-settings', {
                 frequency,
                 reportType,
                 recipients: selectedEmployees
@@ -211,7 +207,7 @@ const Settings = () => {
             setLoading(true);
             console.log('Requesting preview for:', reportType);
 
-            const response = await axios.post(`${API_BASE_URL}/api/report-settings/preview`, {
+            const response = await api.post('/report-settings/preview', {
                 reportType
             });
 
@@ -243,7 +239,7 @@ const Settings = () => {
 
         try {
             setLoading(true);
-            const response = await axios.post(`${API_BASE_URL}/api/report-settings/send-now`, {
+            const response = await api.post('/report-settings/send-now', {
                 reportType,
                 recipients: selectedEmployees
             });
@@ -262,10 +258,7 @@ const Settings = () => {
     const handleExportDeletedDesigns = async () => {
         try {
             setExportLoading(true);
-            const token = sessionStorage.getItem('token');
-            const response = await axios.get(`${API_BASE_URL}/api/design-library?activeStatus=false&limit=10000`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.get('/design-library?activeStatus=false&limit=10000');
             
             const deletedData = response.data.data;
             if (!deletedData || deletedData.length === 0) {
