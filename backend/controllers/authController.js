@@ -4,6 +4,8 @@ const asyncHandler = require('express-async-handler');
 const User = require('../models/UserModel');
 const Employee = require('../models/EmployeeModel');
 const UserActivity = require('../models/UserActivity');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 // Generate JWT (Access Token - 15 minutes)
 const generateToken = (id) => {
@@ -84,7 +86,7 @@ const loginUser = asyncHandler(async (req, res) => {
             role: user.role,
             permissions: user.permissions,
             employeeId: user.employeeId ? user.employeeId.employeeId : null,
-            name: user.employeeId ? user.employeeId.employeeName : 'Admin User',
+            name: user.employeeId ? user.employeeId.employeeName : (user.email ? user.email.split('@')[0] : 'Admin User'),
             department: user.employeeId ? user.employeeId.departmentName : 'System',
             location: user.employeeId ? user.employeeId.plantLocation : '',
             token: accessToken,
@@ -204,7 +206,7 @@ const getMe = asyncHandler(async (req, res) => {
             role: user.role,
             permissions: user.permissions,
             employeeId: user.employeeId ? user.employeeId.employeeId : null,
-            name: user.employeeId ? user.employeeId.employeeName : 'Admin User',
+            name: user.employeeId ? user.employeeId.employeeName : (user.email ? user.email.split('@')[0] : 'Admin User'),
             department: user.employeeId ? user.employeeId.departmentName : 'System',
             location: user.employeeId ? user.employeeId.plantLocation : '',
         });
@@ -242,13 +244,21 @@ const seedDatabase = asyncHandler(async (req, res) => {
         accessLevel: 'Admin',
         permissions: {
             dashboard: true,
-            assetRequest: true,
-            requestTracker: true,
+            mhRequest: true,
+            allRequestsOverview: true,
+            mhDevelopment: true,
+            projectPlanTracking: true,
+            l1ApprovalQueue: true,
+            designQueue: true,
+            checkerQueue: true,
+            finalApproval: true,
+            assetManagement: true,
             assetSummary: true,
-            reports: true,
+            designLibrary: true,
             employeeMaster: true,
             vendorMaster: true,
-            mhDevelopmentTracker: true,
+            vendorScoring: true,
+            vendorLoading: true,
             settings: true
         },
         status: 'Active'
@@ -266,13 +276,21 @@ const seedDatabase = asyncHandler(async (req, res) => {
         role: 'Admin',
         permissions: {
             dashboard: true,
-            assetRequest: true,
-            requestTracker: true,
+            mhRequest: true,
+            allRequestsOverview: true,
+            mhDevelopment: true,
+            projectPlanTracking: true,
+            l1ApprovalQueue: true,
+            designQueue: true,
+            checkerQueue: true,
+            finalApproval: true,
+            assetManagement: true,
             assetSummary: true,
-            reports: true,
+            designLibrary: true,
             employeeMaster: true,
             vendorMaster: true,
-            mhDevelopmentTracker: true,
+            vendorScoring: true,
+            vendorLoading: true,
             settings: true
         },
         status: 'Active'
@@ -308,11 +326,132 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 });
 
+// @desc    Forgot Password
+// @route   POST /api/auth/forgot-password
+// @access  Public
+const forgotPassword = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+        res.status(404);
+        throw new Error('There is no user with that email');
+    }
+
+    // Generate token
+    const resetToken = crypto.randomBytes(20).toString('hex');
+
+    // Hash token and set to resetPasswordToken field
+    user.resetPasswordToken = crypto
+        .createHash('sha256')
+        .update(resetToken)
+        .digest('hex');
+
+    // Set expire (15 mins)
+    user.resetPasswordExpire = Date.now() + 15 * 60 * 1000;
+    
+    // Save to DB
+    await user.save();
+
+    // Create reset url (pointing to frontend)
+    const origin = req.headers.origin || `http://localhost:5173`;
+    const resetUrl = `${origin}/reset-password/${resetToken}`;
+
+    // Send email
+    const port = parseInt(process.env.SMTP_PORT, 10) || 587;
+    const isSecure = process.env.SMTP_SECURE === 'true' || port === 465;
+
+    const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: port,
+        secure: isSecure,
+        auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+        },
+        tls: { rejectUnauthorized: false }
+    });
+
+    const message = `
+        <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+            <h2 style="color: #d32f2f;">Password Reset Request</h2>
+            <p>You are receiving this email because you (or someone else) has requested the reset of a password.</p>
+            <p>Please click the button below to reset your password. This link is valid for 15 minutes.</p>
+            <div style="margin: 20px 0;">
+                <a href="${resetUrl}" style="background-color: #d32f2f; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Reset Password</a>
+            </div>
+            <p>If you did not request a password reset, please ignore this email and your password will remain unchanged.</p>
+            <p>Best regards,<br/>TVS Admin Team</p>
+        </div>
+    `;
+
+    try {
+        await transporter.sendMail({
+            from: process.env.SMTP_USER,
+            to: user.email,
+            subject: 'TVS Portal - Password Reset',
+            html: message
+        });
+        res.status(200).json({ success: true, data: 'Email sent' });
+    } catch (err) {
+        console.error('Email send error:', err);
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpire = undefined;
+        await user.save();
+
+        res.status(500);
+        throw new Error('Email could not be sent');
+    }
+});
+
+// @desc    Reset Password
+// @route   PUT /api/auth/reset-password/:token
+// @access  Public
+const resetPassword = asyncHandler(async (req, res) => {
+    // Get hashed token
+    const resetPasswordToken = crypto
+        .createHash('sha256')
+        .update(req.params.token)
+        .digest('hex');
+
+    const user = await User.findOne({
+        resetPasswordToken,
+        resetPasswordExpire: { $gt: Date.now() }
+    });
+
+    if (!user) {
+        res.status(400);
+        throw new Error('Invalid token or token has expired');
+    }
+
+    // Check if password exists
+    if(!req.body.password) {
+        res.status(400);
+        throw new Error('Please add a password');
+    }
+
+    // Set new password
+    const salt = await bcrypt.genSalt(10);
+    user.passwordHash = await bcrypt.hash(req.body.password, salt);
+    
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+
+    await user.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Password reset successful'
+    });
+});
+
 module.exports = {
     loginUser,
     registerUser,
     getMe,
     logoutUser,
     seedDatabase,
-    refreshAccessToken
+    refreshAccessToken,
+    forgotPassword,
+    resetPassword
 };

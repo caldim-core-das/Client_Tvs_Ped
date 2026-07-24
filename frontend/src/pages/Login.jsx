@@ -276,7 +276,7 @@ const Login = () => {
                                         Password
                                     </label>
                                     <span 
-                                        onClick={() => toast('Please contact your System Administrator to reset your password.', { icon: '🔒', duration: 4000 })}
+                                        onClick={() => navigate('/forgot-password')}
                                         style={{ fontSize: '12px', color: '#253C80', fontWeight: '600', cursor: 'pointer' }}
                                     >
                                         Forgot password?
