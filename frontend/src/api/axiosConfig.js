@@ -2,37 +2,30 @@ import axios from 'axios';
 
 export const getApiBaseUrl = () => {
     if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        return '/Tvs/api';
-    }
-    if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-    if (import.meta.env.VITE_API_BASE_URL) {
-        const base = import.meta.env.VITE_API_BASE_URL;
-        return base.endsWith('/api') ? base : `${base}/api`;
-    }
-    return 'http://localhost:5000/api';
-};
-
-export const getApiServerUrl = () => {
-    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
         return '/Tvs';
     }
+    if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL.replace(/\/api$/, '');
     if (import.meta.env.VITE_API_BASE_URL) {
         return import.meta.env.VITE_API_BASE_URL.replace(/\/api$/, '');
     }
     return 'http://localhost:5000';
 };
 
+export const getApiServerUrl = () => {
+    return getApiBaseUrl();
+};
+
 const serverUrl = getApiBaseUrl();
 
 const api = axios.create({
-    baseURL: serverUrl,
+    baseURL: `${serverUrl}/api`,
     headers: {
         'Content-Type': 'application/json',
     },
 });
 
 export const uploadApi = axios.create({
-    baseURL: serverUrl,
+    baseURL: `${serverUrl}/api`,
     headers: {
         'Content-Type': 'multipart/form-data',
     },
@@ -41,6 +34,9 @@ export const uploadApi = axios.create({
 // Request interceptor for uploadApi
 uploadApi.interceptors.request.use(
     (config) => {
+        if (config.url && config.url.startsWith('/api/')) {
+            config.url = config.url.replace(/^\/api/, '');
+        }
         const token = sessionStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
@@ -53,6 +49,9 @@ uploadApi.interceptors.request.use(
 // Request interceptor for api
 api.interceptors.request.use(
     (config) => {
+        if (config.url && config.url.startsWith('/api/')) {
+            config.url = config.url.replace(/^\/api/, '');
+        }
         const token = sessionStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;

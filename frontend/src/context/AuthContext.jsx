@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }) => {
                         originalRequest._retry = true;
                         try {
                             const res = await axios.post(
-                                `${API_BASE_URL}/auth/refresh`,
+                                `${API_BASE_URL}/api/auth/refresh`,
                                 {},
                                 { withCredentials: true, _retry: true }
                             );
@@ -93,7 +93,7 @@ export const AuthProvider = ({ children }) => {
             }
             try {
                 // Pass the token manually; authCheckAxios has no shared defaults
-                const res = await authCheckAxios.get(`${API_BASE_URL}/auth/me`, {
+                const res = await authCheckAxios.get(`${API_BASE_URL}/api/auth/me`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 setUser(res.data);
@@ -130,7 +130,7 @@ export const AuthProvider = ({ children }) => {
             refreshInterval = setInterval(async () => {
                 try {
                     const res = await axios.post(
-                        `${API_BASE_URL}/auth/refresh`,
+                        `${API_BASE_URL}/api/auth/refresh`,
                         {},
                         { withCredentials: true }
                     );
@@ -153,7 +153,7 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (email, password) => {
         try {
-            const res = await axios.post(`${API_BASE_URL}/auth/login`, { email, password });
+            const res = await axios.post(`${API_BASE_URL}/api/auth/login`, { email, password });
 
             setToken(res.data.token);
             setUser(res.data);
@@ -183,7 +183,7 @@ export const AuthProvider = ({ children }) => {
     const logout = async () => {
         try {
             const body = sessionId ? { sessionId } : {};
-            await axios.post(`${API_BASE_URL}/auth/logout`, body, { _retry: true });
+            await axios.post(`${API_BASE_URL}/api/auth/logout`, body, { _retry: true });
         } catch (error) {
             console.error('Logout error', error);
         } finally {
