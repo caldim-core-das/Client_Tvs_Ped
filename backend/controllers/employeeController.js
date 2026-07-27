@@ -107,7 +107,10 @@ const createEmployee = asyncHandler(async (req, res) => {
 
     // Determine the role for the Employee record
     const validRoles = ['Admin', 'Requester', 'L1 Approver', 'PED Engineer', 'Designer', 'Checker', 'Final Approver'];
-    const employeeRole = (role && validRoles.includes(role)) ? role : 'Requester';
+    const cleanedRole = role ? role.toString().trim() : '';
+    const matchedRole = validRoles.find(r => r.toLowerCase() === cleanedRole.toLowerCase());
+    const employeeRole = matchedRole || (cleanedRole || 'Requester');
+    const cleanedStatus = status ? (status.toString().trim().toLowerCase() === 'active' ? 'Active' : status.toString().trim()) : 'Active';
 
     const employee = await Employee.create({
         employeeId,
@@ -117,7 +120,7 @@ const createEmployee = asyncHandler(async (req, res) => {
         accessLevel,
         role: employeeRole,
         mailId,
-        status,
+        status: cleanedStatus,
         permissions,
         createdBy: actorId,
         updatedBy: actorId
@@ -220,9 +223,11 @@ const updateEmployee = asyncHandler(async (req, res) => {
 
         // Resolve the new user role
         const validRoles = ['Admin', 'Requester', 'L1 Approver', 'PED Engineer', 'Designer', 'Checker', 'Final Approver'];
+        const cleanedUpRole = updatedRole ? updatedRole.toString().trim() : '';
+        const matchedUpRole = validRoles.find(r => r.toLowerCase() === cleanedUpRole.toLowerCase());
         let resolvedUserRole = null;
-        if (updatedRole && validRoles.includes(updatedRole)) {
-            resolvedUserRole = updatedRole;
+        if (matchedUpRole || cleanedUpRole) {
+            resolvedUserRole = matchedUpRole || cleanedUpRole;
         } else if (accessLevel) {
             resolvedUserRole = (accessLevel === 'Admin' || accessLevel === 'Super Admin') ? 'Admin' : 'Requester';
         }
@@ -551,7 +556,7 @@ const checkEmployeeId = asyncHandler(async (req, res) => {
 // @route   GET /api/employees/ped-engineers
 // @access  Private
 const getPedEngineers = asyncHandler(async (req, res) => {
-    const engineers = await Employee.find({ role: 'PED Engineer', status: 'Active' })
+    const engineers = await Employee.find({ role: /^\s*ped engineer\s*$/i, status: /^\s*active\s*$/i })
         .select('employeeId employeeName mailId departmentName plantLocation role')
         .sort({ employeeName: 1 });
 
@@ -562,7 +567,7 @@ const getPedEngineers = asyncHandler(async (req, res) => {
 // @route   GET /api/employees/approvers
 // @access  Private
 const getApprovers = asyncHandler(async (req, res) => {
-    const filter = { role: 'L1 Approver', status: 'Active' };
+    const filter = { role: /^\s*l1 approver\s*$/i, status: /^\s*active\s*$/i };
     if (req.query.department) {
         filter.departmentName = req.query.department;
     }

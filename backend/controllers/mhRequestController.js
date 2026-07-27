@@ -20,12 +20,12 @@ async function notifyL1OnSubmission(savedRequest, estimate, requester) {
         // 1. Fetch L1 Approvers from Employee Master
         const dept = savedRequest.departmentName;
         let approvers = await Employee.find({
-            role: 'L1 Approver',
-            status: 'Active'
+            role: /^\s*l1 approver\s*$/i,
+            status: /^\s*active\s*$/i
         }).lean();
 
         if (!approvers || approvers.length === 0) {
-            const fallbackApprover = await Employee.findOne({ status: 'Active' }).lean();
+            const fallbackApprover = await Employee.findOne({ status: /^\s*active\s*$/i }).lean();
             if (fallbackApprover) approvers = [fallbackApprover];
         }
 
@@ -36,14 +36,14 @@ async function notifyL1OnSubmission(savedRequest, estimate, requester) {
 
         // 2. Fetch active PED Engineers ONLY from Employee Master (excluding Designers & Requesters)
         let pedEngineers = await Employee.find({
-            status: 'Active',
-            role: /^ped engineer$/i
+            status: /^\s*active\s*$/i,
+            role: /^\s*ped engineer\s*$/i
         }).sort({ employeeName: 1 }).lean();
 
         if (!pedEngineers || pedEngineers.length === 0) {
             pedEngineers = await Employee.find({
-                status: 'Active',
-                role: 'PED Engineer'
+                status: /^\s*active\s*$/i,
+                role: { $regex: /ped.*engineer/i }
             }).sort({ employeeName: 1 }).lean();
         }
 

@@ -139,6 +139,42 @@ function buildEmailTemplate(event, data) {
 
     const portalBtn = `<a href="${portalUrl}" style="display:inline-block;background:#CC1F1F;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:600;margin-top:12px;">Open Portal</a>`;
 
+    // ─── SOP Score block — rendered when checkerSopResult is present ─────────
+    const sopScoreBlock = (() => {
+        const sop = request.checkerSopResult;
+        if (!sop || sop.score === null || sop.score === undefined) return '';
+        const passed  = sop.passed;
+        const bg      = passed ? '#f0fdf4' : '#fef2f2';
+        const border  = passed ? '#bbf7d0' : '#fecaca';
+        const textCol = passed ? '#166534' : '#991b1b';
+        const label   = passed ? '✅ SOP Passed' : '❌ SOP Failed';
+        const rows    = Array.isArray(sop.answers)
+            ? sop.answers.map(a => `
+              <tr style="border-bottom:1px solid #f1f5f9;">
+                <td style="padding:6px 12px;font-size:12px;color:#374151;">Rule ${a.ruleIndex + 1}</td>
+                <td style="padding:6px 12px;font-size:12px;font-weight:700;color:${a.answer === 'yes' ? '#166534' : '#991b1b'}">${a.answer === 'yes' ? '✓ Yes' : '✗ No'}</td>
+              </tr>`).join('')
+            : '';
+        return `
+    <div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:16px 20px;margin-bottom:24px;">
+      <p style="margin:0 0 8px;font-weight:700;color:${textCol};font-size:13px;text-transform:uppercase;letter-spacing:.5px;">
+        🔍 Checker SOP Review — ${label}
+      </p>
+      <p style="margin:0 0 12px;font-size:14px;color:#374151;">
+        Score: <strong>${sop.score} / ${sop.threshold || 10}</strong> &nbsp;·&nbsp; Threshold: <strong>${sop.threshold || 7}</strong>
+      </p>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:6px;overflow:hidden;border:1px solid ${border};">
+        <thead>
+          <tr style="background:${border};">
+            <th style="padding:8px 12px;text-align:left;font-weight:700;color:${textCol};">SOP Rule</th>
+            <th style="padding:8px 12px;text-align:left;font-weight:700;color:${textCol};width:80px;">Answer</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+    })();
+
     // ─── Lead Time Status block ─── Consumed/Remaining/% — rendered whenever a
     // leadTime payload with computed status (see backend/utils/leadTimeStatus.js) is passed.
     const leadTimeStatusBlock = (() => {
@@ -255,6 +291,7 @@ function buildEmailTemplate(event, data) {
                 For the MH request <strong>${request.mhRequestId}</strong>, the Checker has approved the design and it has come to you for final approval. Please log in to the portal and perform your approval.
               </p>
               ${requestDetailsTable}
+              ${sopScoreBlock}
               ${leadTimeStatusBlock}
               <div style="text-align:center;margin:30px 0;">
                 <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/final-approval-queue" style="background:#B31818;color:#ffffff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;">Open Final Approval Queue</a>
@@ -272,6 +309,7 @@ function buildEmailTemplate(event, data) {
                 <p style="margin:0 0 6px;font-weight:700;color:#991b1b;">Reason for Rejection:</p>
                 <p style="margin:0;color:#374151;font-weight:600;">${request.checkerComment || 'Please review the design requirements and resubmit.'}</p>
               </div>
+              ${sopScoreBlock}
               ${requestDetailsTable}
               ${leadTimeStatusBlock}
               <div style="text-align:center;margin:30px 0;">

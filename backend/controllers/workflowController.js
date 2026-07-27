@@ -185,7 +185,7 @@ const l1Approve = asyncHandler(async (req, res) => {
     }
 
     // Find the single Final Approver employee
-    const finalApproverEmployee = await Employee.findOne({ role: 'Final Approver', status: 'Active' });
+    const finalApproverEmployee = await Employee.findOne({ role: /^\s*final approver\s*$/i, status: /^\s*active\s*$/i });
 
 
     // Apply state transition
@@ -366,14 +366,14 @@ const designerReject = asyncHandler(async (req, res) => {
     // 1. L1 Approver
     let l1App = updatedRequest.approver;
     if (!l1App || !l1App.mailId) {
-        l1App = await Employee.findOne({ role: 'L1 Approver', status: 'Active' }).lean();
+        l1App = await Employee.findOne({ role: /^\s*l1 approver\s*$/i, status: /^\s*active\s*$/i }).lean();
     }
     if (l1App?.mailId) recipients.push({ email: l1App.mailId, name: l1App.employeeName, role: 'L1 Approver' });
 
     // 2. PED Engineer
     let pedEng = updatedRequest.assignedEngineer;
     if (!pedEng || !pedEng.mailId) {
-        pedEng = await Employee.findOne({ role: /^ped engineer$/i, status: 'Active' }).lean();
+        pedEng = await Employee.findOne({ role: /^\s*ped engineer\s*$/i, status: /^\s*active\s*$/i }).lean();
     }
     if (pedEng?.mailId && pedEng.mailId !== l1App?.mailId) {
         recipients.push({ email: pedEng.mailId, name: pedEng.employeeName, role: 'PED Engineer' });
@@ -447,7 +447,7 @@ const submitDesign = [
         const actor   = buildActor(req.user);
         let checker = updatedRequest.assignedChecker;
         if (!checker || !checker.mailId) {
-            checker = await Employee.findOne({ role: /^checker$/i, status: 'Active' }).lean();
+            checker = await Employee.findOne({ role: /^\s*checker\s*$/i, status: /^\s*active\s*$/i }).lean();
         }
         if (checker?.mailId) {
             sendWorkflowNotification({
@@ -470,7 +470,7 @@ const submitDesign = [
 
 // ─── POST /api/workflow/:requestId/check-design ───────────────────────────────
 const checkDesign = asyncHandler(async (req, res) => {
-    const { action, comment = '' } = req.body;
+    const { action, comment = '', sopAnswers = [] } = req.body;
 
     if (!['approve', 'reject'].includes(action)) {
         return res.status(400).json({ message: "action must be 'approve' or 'reject'" });
@@ -478,6 +478,47 @@ const checkDesign = asyncHandler(async (req, res) => {
     if (action === 'reject' && comment.trim().length < 10) {
         return res.status(400).json({ message: 'Rejection comment required (min 10 characters)' });
     }
+
+    // ── SOP Scoring ──────────────────────────────────────────────────────────
+    const SOP_THRESHOLD = 7;  // configurable default — 7 out of 10 rules must pass
+    const SOP_TOTAL     = 10;
+
+    let sopScore    = null;
+    let sopPassed   = null;
+    let sopResult   = null;
+
+    if (Array.isArray(sopAnswers) && sopAnswers.length > 0) {
+        // Validate answers array
+        const validAnswers = sopAnswers.filter(a =>
+            typeof a.ruleIndex === 'number' &&
+            a.ruleIndex >= 0 && a.ruleIndex < SOP_TOTAL &&
+            ['yes', 'no'].includes(a.answer)
+        );
+
+        sopScore  = validAnswers.filter(a => a.answer === 'yes').length;
+        sopPassed = sopScore >= SOP_THRESHOLD;
+        sopResult = {
+            answers:   validAnswers,
+            score:     sopScore,
+            threshold: SOP_THRESHOLD,
+            passed:    sopPassed
+        };
+
+        // Enforce SOP pass on approval
+        if (action === 'approve' && !sopPassed) {
+            return res.status(400).json({
+                message: `SOP checklist score (${sopScore}/${SOP_TOTAL}) is below the required threshold of ${SOP_THRESHOLD}. Please resolve failing rules before approving.`
+            });
+        }
+
+        // All 10 rules must be answered before approving
+        if (action === 'approve' && validAnswers.length < SOP_TOTAL) {
+            return res.status(400).json({
+                message: `All ${SOP_TOTAL} SOP rules must be answered before approving. Currently ${validAnswers.length} answered.`
+            });
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     const request = await MHRequest.findOne(buildRequestQuery(req.params.requestId));
     if (!request) return res.status(404).json({ message: 'Request not found' });
@@ -492,7 +533,10 @@ const checkDesign = asyncHandler(async (req, res) => {
         state:  targetState,
         action: action === 'approve' ? 'CHECKER_APPROVED' : 'CHECKER_REJECTED',
         user:   req.user,
-        comment
+        comment,
+        metadata: sopResult
+            ? { sopScore, sopPassed, sopThreshold: SOP_THRESHOLD }
+            : {}
     });
 
     const updateData = {
@@ -501,6 +545,11 @@ const checkDesign = asyncHandler(async (req, res) => {
         checkerComment: comment,
         $push: { stageHistory: historyEntry }
     };
+
+    // Store SOP result if provided
+    if (sopResult) {
+        updateData.checkerSopResult = sopResult;
+    }
 
     if (action === 'approve') {
         updateData['stageFlags.designApprovedAt'] = new Date();
@@ -515,7 +564,7 @@ const checkDesign = asyncHandler(async (req, res) => {
             state:  'DESIGN_IN_PROGRESS',
             action: 'REVISION_REQUIRED',
             user:   req.user,
-            comment: `Returned for revision. Checker feedback: ${comment}`
+            comment: `Returned for revision. Checker feedback: ${comment}${sopScore !== null ? ` | SOP Score: ${sopScore}/${SOP_TOTAL}` : ''}`
         });
         updateData.$push = { stageHistory: { $each: [historyEntry, revisionEntry] } };
         updateData.workflowState = 'DESIGN_IN_PROGRESS';
@@ -534,12 +583,12 @@ const checkDesign = asyncHandler(async (req, res) => {
         let faName = fa?.employeeName || fa?.name;
 
         if (!faEmail) {
-            const faEmp = await Employee.findOne({ role: { $regex: /final.*approver/i }, status: 'Active' }).lean();
+            const faEmp = await Employee.findOne({ role: { $regex: /final.*approver/i }, status: /^\s*active\s*$/i }).lean();
             if (faEmp?.mailId) {
                 faEmail = faEmp.mailId;
                 faName = faEmp.employeeName;
             } else {
-                const faUser = await User.findOne({ role: { $regex: /final.*approver/i }, status: 'Active' }).lean();
+                const faUser = await User.findOne({ role: { $regex: /final.*approver/i }, status: /^\s*active\s*$/i }).lean();
                 if (faUser?.email) {
                     faEmail = faUser.email;
                     faName = faUser.name;
@@ -554,7 +603,7 @@ const checkDesign = asyncHandler(async (req, res) => {
 
         if (faEmail) {
             sendWorkflowNotification({
-                request:   updatedRequest,
+                request:   { ...updatedRequest, checkerSopResult: sopResult },
                 event:     'DESIGN_APPROVED',
                 recipient: { email: faEmail, name: faName || 'Final Approver', role: 'Final Approver' },
                 actor,
@@ -562,15 +611,34 @@ const checkDesign = asyncHandler(async (req, res) => {
             }).catch(console.error);
         }
     } else {
+        // Notify designer + PED engineer + L1 approver of rejection
+        const recipients = [];
+
         let designer = updatedRequest.assignedDesigner;
         if (!designer || !designer.mailId) {
-            designer = await Employee.findOne({ role: /^designer$/i, status: 'Active' }).lean();
+            designer = await Employee.findOne({ role: /^\s*designer\s*$/i, status: /^\s*active\s*$/i }).lean();
         }
         if (designer?.mailId) {
+            recipients.push({ email: designer.mailId, name: designer.employeeName, role: 'Designer' });
+        }
+
+        // PED Engineer
+        const pedEng = await Employee.findOne({ role: /^\s*ped engineer\s*$/i, status: /^\s*active\s*$/i }).lean();
+        if (pedEng?.mailId && !recipients.some(r => r.email === pedEng.mailId)) {
+            recipients.push({ email: pedEng.mailId, name: pedEng.employeeName, role: 'PED Engineer' });
+        }
+
+        // L1 Approver
+        const l1 = await Employee.findOne({ role: /^\s*l1 approver\s*$/i, status: /^\s*active\s*$/i }).lean();
+        if (l1?.mailId && !recipients.some(r => r.email === l1.mailId)) {
+            recipients.push({ email: l1.mailId, name: l1.employeeName, role: 'L1 Approver' });
+        }
+
+        for (const rec of recipients) {
             sendWorkflowNotification({
-                request:   updatedRequest,
+                request:   { ...updatedRequest, checkerSopResult: sopResult },
                 event:     'DESIGN_REJECTED',
-                recipient: { email: designer.mailId, name: designer.employeeName, role: 'Designer' },
+                recipient: rec,
                 actor,
                 leadTime
             }).catch(console.error);
@@ -581,9 +649,12 @@ const checkDesign = asyncHandler(async (req, res) => {
         success:       true,
         workflowState: action === 'approve' ? 'DESIGN_APPROVED' : 'DESIGN_IN_PROGRESS',
         action,
+        sopScore,
+        sopPassed,
         leadTime
     });
 });
+
 
 // ─── POST /api/workflow/:requestId/final-approve ─────────────────────────────
 const finalApprove = asyncHandler(async (req, res) => {

@@ -259,7 +259,18 @@ const mhRequestSchema = new mongoose.Schema({
     // ── Approval Comments / Digital Remarks ───────────────────────────────────
     l1ApprovalComment:    { type: String, default: '' },
     checkerComment:       { type: String, default: '' },
-    finalApprovalComment: { type: String, default: '' }
+    finalApprovalComment: { type: String, default: '' },
+
+    // ── Checker SOP Result (additive — null for pre-SOP records) ─────────────
+    checkerSopResult: {
+        answers: [{
+            ruleIndex: { type: Number },           // 0-9 (maps to 10 SOP rules)
+            answer:    { type: String, enum: ['yes', 'no'] }
+        }],
+        score:     { type: Number, default: null },  // count of 'yes' answers
+        threshold: { type: Number, default: 7 },     // configurable pass threshold
+        passed:    { type: Boolean, default: null }   // score >= threshold
+    }
 
 }, {
     timestamps: true
