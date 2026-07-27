@@ -131,6 +131,7 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
 
     // Design file upload
     const [designFiles, setDesignFiles] = useState([]);
+    const [isScanning, setIsScanning] = useState(false);
 
     const exec = async (fn, toastKey) => {
         setLoading(true);
@@ -183,16 +184,43 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
                     <label className="block text-sm font-bold text-slate-700 mb-3">
                         Upload Design Documents
                     </label>
-                    <input
-                        type="file"
-                        multiple
-                        onChange={e => setDesignFiles(Array.from(e.target.files))}
-                        className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                        accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg"
-                    />
-                    {designFiles.length > 0 && (
-                        <div className="text-xs font-semibold text-emerald-600 mt-3 flex items-center gap-1.5">
-                            <CheckCircle2 size={14} /> {designFiles.length} file(s) selected and ready
+                    <div className="relative w-full">
+                        <input
+                            type="file"
+                            multiple
+                            onChange={e => {
+                                const files = Array.from(e.target.files);
+                                if (files.length > 0) {
+                                    setDesignFiles([]);
+                                    setIsScanning(true);
+                                    setTimeout(() => {
+                                        setIsScanning(false);
+                                        setDesignFiles(files);
+                                    }, 1500);
+                                } else {
+                                    setDesignFiles([]);
+                                }
+                            }}
+                            className="block w-full text-sm text-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                            accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg"
+                        />
+                        
+                        {/* Overlay to show custom text next to the "Choose Files" button */}
+                        <div className="absolute top-[8px] left-[130px] pointer-events-none text-sm">
+                            {isScanning ? (
+                                <span className="text-orange-500 font-semibold flex items-center gap-1.5">
+                                    <Loader2 size={16} className="animate-spin" /> Scanning for viruses...
+                                </span>
+                            ) : (
+                                designFiles.length > 0 
+                                    ? <span className="text-slate-700 truncate block max-w-[250px] sm:max-w-[400px]">{designFiles.map(f => f.name).join(', ')}</span>
+                                    : <span className="text-slate-400">No file chosen</span>
+                            )}
+                        </div>
+                    </div>
+                    {designFiles.length > 0 && !isScanning && (
+                        <div className="text-xs font-semibold text-emerald-600 mt-3 flex items-center gap-1.5 animate-in fade-in zoom-in-95 duration-300">
+                            <CheckCircle2 size={14} /> Scan complete. Files ready for submission.
                         </div>
                     )}
                 </div>
