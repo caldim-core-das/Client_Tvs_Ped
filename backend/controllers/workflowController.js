@@ -118,9 +118,16 @@ const getWorkflowQueue = asyncHandler(async (req, res) => {
             };
             break;
         case 'design':
-            query.workflowState = { $in: ['DESIGN_IN_PROGRESS', 'DESIGN_REJECTED', 'L1_APPROVED', 'Assigned', 'In Progress'] };
-            if (req.user.role === 'Designer') {
+            // L1_APPROVED  → awaiting PED Engineer to assign Designer + Checker
+            // DESIGN_IN_PROGRESS / DESIGN_REJECTED → assigned Designer is actively working
+            query.workflowState = { $in: ['L1_APPROVED', 'DESIGN_IN_PROGRESS', 'DESIGN_REJECTED'] };
+            if (req.user.role === 'PED Engineer') {
                 const emp = await Employee.findOne({ userId: userId });
+                if (emp) query.assignedEngineer = emp._id;
+            } else if (req.user.role === 'Designer') {
+                const emp = await Employee.findOne({ userId: userId });
+                // Designers only care about requests already handed to them for design work
+                query.workflowState = { $in: ['DESIGN_IN_PROGRESS', 'DESIGN_REJECTED'] };
                 if (emp) query.assignedDesigner = emp._id;
             }
             break;
@@ -157,11 +164,13 @@ const getWorkflowQueue = asyncHandler(async (req, res) => {
 });
 
 // ─── POST /api/workflow/:requestId/l1-approve ─────────────────────────────────
+// L1 Approver approves the request and assigns a PED Engineer. The PED Engineer
+// then logs in and assigns the Designer + Checker (see assignDesignTeam below).
 const l1Approve = asyncHandler(async (req, res) => {
-    const { comment = '', assignDesignerId, assignCheckerId } = req.body;
+    const { comment = '', assignEngineerId } = req.body;
 
-    if (!assignDesignerId || !assignCheckerId) {
-        return res.status(400).json({ message: 'Designer and Checker must be assigned on L1 Approval' });
+    if (!assignEngineerId) {
+        return res.status(400).json({ message: 'A PED Engineer must be assigned on L1 Approval' });
     }
 
     const request = await MHRequest.findOne(buildRequestQuery(req.params.requestId));
@@ -170,6 +179,75 @@ const l1Approve = asyncHandler(async (req, res) => {
     if (!isValidTransition(request.workflowState, 'L1_APPROVED')) {
         return res.status(400).json({
             message: `Cannot approve from state '${request.workflowState}'`
+        });
+    }
+
+    const engineer = await Employee.findById(assignEngineerId);
+    if (!engineer) return res.status(404).json({ message: 'PED Engineer employee not found' });
+
+    const l1Comment = comment
+        ? `${comment} | Assigned PED Engineer: ${engineer.employeeName}`
+        : `Approved and assigned PED Engineer: ${engineer.employeeName}`;
+
+    const historyEntry = buildHistoryEntry({
+        stage:   'L1_APPROVAL',
+        state:   'L1_APPROVED',
+        action:  'PED_ENGINEER_ASSIGNED',
+        user:    req.user,
+        comment: l1Comment,
+        metadata: { assignedEngineer: assignEngineerId }
+    });
+
+    await MHRequest.findByIdAndUpdate(request._id, {
+        workflowState:     'L1_APPROVED',
+        workflowVersion:    2,
+        currentStage:       2,
+        status:             'Accepted',     // keep legacy field in sync
+        assignedEngineer:   assignEngineerId,
+        assignedAt:         new Date(),
+        workflowStatus:     'Assigned',     // keep legacy field in sync
+        l1ApprovalComment:  comment,
+        'stageFlags.l1ApprovedAt': new Date(),
+        $push: { stageHistory: historyEntry }
+    });
+
+    const updatedRequest = await MHRequest.findById(request._id).lean();
+    const leadTime = buildLeadTimePayload(updatedRequest);
+
+    // Notifications
+    const actor = buildActor(req.user);
+    const sendIfEmail = (email, name, role, event) => {
+        if (email) sendWorkflowNotification({ request: updatedRequest, event, recipient: { email, name, role }, actor, leadTime }).catch(console.error);
+    };
+
+    sendIfEmail(engineer.mailId, engineer.employeeName, 'PED Engineer', 'PED_ENGINEER_ASSIGNED');
+    sendIfEmail(request.mailId, request.userName, 'Requester', 'L1_APPROVED');
+
+    res.json({
+        success:       true,
+        workflowState: 'L1_APPROVED',
+        currentStage:  2,
+        leadTime,
+        message:       `Request approved. PED Engineer ${engineer.employeeName} assigned.`
+    });
+});
+
+// ─── POST /api/workflow/:requestId/assign-design-team ─────────────────────────
+// PED Engineer assigns the Designer + Checker together, moving the request into
+// active design work. Mirrors what l1Approve used to do, now moved one stage down.
+const assignDesignTeam = asyncHandler(async (req, res) => {
+    const { comment = '', assignDesignerId, assignCheckerId } = req.body;
+
+    if (!assignDesignerId || !assignCheckerId) {
+        return res.status(400).json({ message: 'Designer and Checker must both be assigned' });
+    }
+
+    const request = await MHRequest.findOne(buildRequestQuery(req.params.requestId));
+    if (!request) return res.status(404).json({ message: 'Request not found' });
+
+    if (!isValidTransition(request.workflowState, 'DESIGN_IN_PROGRESS')) {
+        return res.status(400).json({
+            message: `Cannot assign Designer/Checker from state '${request.workflowState}'`
         });
     }
 
@@ -187,71 +265,47 @@ const l1Approve = asyncHandler(async (req, res) => {
     // Find the single Final Approver employee
     const finalApproverEmployee = await Employee.findOne({ role: /^\s*final approver\s*$/i, status: /^\s*active\s*$/i });
 
-
-    // Apply state transition
-    const l1Comment = comment
+    const teamComment = comment
         ? `${comment} | Assigned Designer: ${designer.employeeName}, Checker: ${checker.employeeName}`
-        : `Approved and assigned Designer: ${designer.employeeName}, Checker: ${checker.employeeName}`;
+        : `Designer: ${designer.employeeName}, Checker: ${checker.employeeName} assigned by PED Engineer`;
 
     const historyEntry = buildHistoryEntry({
-        stage:   'L1_APPROVAL',
-        state:   'L1_APPROVED',
-        action:  'APPROVED',
-        user:    req.user,
-        comment: l1Comment,
-        metadata: { assignedDesigner: assignDesignerId, assignedChecker: assignCheckerId }
-    });
-
-
-    await MHRequest.findByIdAndUpdate(request._id, {
-        workflowState:        'L1_APPROVED',
-        workflowVersion:       2,
-        currentStage:          2,
-        status:                'Accepted',     // keep legacy field in sync
-        assignedDesigner:      assignDesignerId,
-        assignedChecker:       assignCheckerId,
-        assignedFinalApprover: finalApproverEmployee?._id || null,
-        l1ApprovalComment:     comment,
-        'stageFlags.l1ApprovedAt':     new Date(),
-        'stageFlags.designAssignedAt': new Date(),
-        $push: { stageHistory: historyEntry }
-    });
-
-    // Transition immediately to DESIGN_IN_PROGRESS since designer is assigned
-    const designEntry = buildHistoryEntry({
         stage:  'DESIGN',
         state:  'DESIGN_IN_PROGRESS',
         action: 'DESIGNER_ASSIGNED',
         user:   req.user,
-        comment: `Designer: ${designer.employeeName}, Checker: ${checker.employeeName}`
+        comment: teamComment,
+        metadata: { assignedDesigner: assignDesignerId, assignedChecker: assignCheckerId }
     });
 
     await MHRequest.findByIdAndUpdate(request._id, {
-        workflowState: 'DESIGN_IN_PROGRESS',
-        currentStage:  3,
-        progressStatus: 'Design',   // keep legacy field in sync
-        $push: { stageHistory: designEntry }
+        workflowState:         'DESIGN_IN_PROGRESS',
+        currentStage:          3,
+        progressStatus:        'Design',   // keep legacy field in sync
+        assignedDesigner:      assignDesignerId,
+        assignedChecker:       assignCheckerId,
+        assignedFinalApprover: finalApproverEmployee?._id || null,
+        'stageFlags.designAssignedAt': new Date(),
+        $push: { stageHistory: historyEntry }
     });
 
     const updatedRequest = await MHRequest.findById(request._id).lean();
     const leadTime = buildLeadTimePayload(updatedRequest);
 
-    // Notifications
     const actor = buildActor(req.user);
     const sendIfEmail = (email, name, role, event) => {
         if (email) sendWorkflowNotification({ request: updatedRequest, event, recipient: { email, name, role }, actor, leadTime }).catch(console.error);
     };
 
-    sendIfEmail(designer.mailId, designer.employeeName, 'Designer', 'L1_APPROVED');
+    sendIfEmail(designer.mailId, designer.employeeName, 'Designer', 'DESIGNER_ASSIGNED');
     sendIfEmail(checker.mailId, checker.employeeName, 'Checker', 'CHECKER_ASSIGNED');
-    sendIfEmail(request.mailId, request.userName, 'Requester', 'L1_APPROVED');
 
     res.json({
-        success:      true,
+        success:       true,
         workflowState: 'DESIGN_IN_PROGRESS',
         currentStage:  3,
         leadTime,
-        message:      `Request approved. Designer ${designer.employeeName} and Checker ${checker.employeeName} assigned.`
+        message:       `Designer ${designer.employeeName} and Checker ${checker.employeeName} assigned.`
     });
 });
 
@@ -845,6 +899,7 @@ module.exports = {
     getWorkflowQueue,
     l1Approve,
     l1Reject,
+    assignDesignTeam,
     submitDesign,
     checkDesign,
     finalApprove,

@@ -234,7 +234,7 @@ function App() {
 
             {/* ── Enterprise Workflow v2 Routes ────────────────────────────────── */}
             <Route path="workflow/:id" element={
-              <ProtectedRoute permission="requestTracker">
+              <ProtectedRoute>
                 <WorkflowDetailPage />
               </ProtectedRoute>
             } />

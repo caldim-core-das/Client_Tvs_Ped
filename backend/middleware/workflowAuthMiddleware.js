@@ -24,9 +24,9 @@ const ALLOWED_TRANSITIONS = {
 
 // ─── Roles allowed per transition ─────────────────────────────────────────────
 const TRANSITION_ROLES = {
-    L1_APPROVED:        ['L1 Approver', 'Admin'],
+    L1_APPROVED:        ['L1 Approver', 'Admin'],           // L1 assigns PED Engineer
     L1_REJECTED:        ['L1 Approver', 'Admin'],
-    DESIGN_IN_PROGRESS: ['L1 Approver', 'Admin'],           // assignment action
+    DESIGN_IN_PROGRESS: ['PED Engineer', 'Admin'],          // PED Engineer assigns Designer + Checker
     DESIGN_SUBMITTED:   ['Designer', 'Admin'],
     DESIGN_APPROVED:    ['Checker', 'Admin'],
     DESIGN_REJECTED:    ['Checker', 'Admin'],

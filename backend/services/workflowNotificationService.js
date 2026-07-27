@@ -209,10 +209,20 @@ function buildEmailTemplate(event, data) {
               ${footer}`
         },
         L1_APPROVED: {
-            subject: `[TVS-PED] Design Assignment — ${request.mhRequestId}`,
-            html: `${header('Design Assignment — Action Required')}
+            subject: `[TVS-PED] Request Approved — ${request.mhRequestId}`,
+            html: `${header('MH Request Approved by L1 Approver')}
               <p>Dear <strong>${recipient.name}</strong>,</p>
-              <p style="color:#475569;">You have been assigned as the <strong>Designer</strong> for the following MH Request. Please begin design work promptly.</p>
+              <p style="color:#475569;">Your MH Request <strong>${request.mhRequestId}</strong> has been approved at the L1 Approval stage and a PED Engineer has been assigned to take it forward.</p>
+              ${requestTable}
+              ${leadTimeStatusBlock}
+              ${portalBtn}
+              ${footer}`
+        },
+        PED_ENGINEER_ASSIGNED: {
+            subject: `[TVS-PED] PED Engineer Assignment — Action Required — ${request.mhRequestId}`,
+            html: `${header('PED Engineer Assignment — Action Required')}
+              <p>Dear <strong>${recipient.name}</strong>,</p>
+              <p style="color:#475569;">For the MH request <strong>${request.mhRequestId}</strong>, the L1 Approver has assigned you as the <strong>PED Engineer</strong>. Please log in to the portal to assign a Designer and Checker for this request.</p>
               ${requestTable}
               ${leadTimeStatusBlock}
               ${portalBtn}

@@ -175,42 +175,35 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
     const applyLayout = k => { setActiveLayout(k); save('sb_layout', k); window.dispatchEvent(new Event('sidebar_theme_update')); };
 
 
-    // ── Build WORKFLOW section items based on current user role ─────────────────
+    // ── Build WORKFLOW section items — visibility is permission-driven only ─────
+    // (matches every other sidebar section: the `permission` field below is the
+    // sole gate, applied later via the shared visibleItems filter)
     const workflowItems = [];
-    const role = user?.role;
 
-    if (role === 'L1 Approver' || role === 'PED Engineer' || role === 'Admin') {
-        workflowItems.push({
-            name: 'L1 Approval Queue',  short: 'L1 Queue', icon: Inbox,
-            path: '/workflow-queue/l1',
-            permission: 'l1ApprovalQueue',
-            badge: queueCounts.l1,      badgeColor: '#f59e0b'
-        });
-    }
-    if (role === 'Designer' || role === 'PED Engineer' || role === 'Admin') {
-        workflowItems.push({
-            name: 'Design Queue',  short: 'Design Q', icon: Pencil,
-            path: '/design-queue',
-            permission: 'designQueue',
-            badge: queueCounts.design,  badgeColor: '#7c3aed'
-        });
-    }
-    if (role === 'Checker' || role === 'Admin') {
-        workflowItems.push({
-            name: 'Checker Queue',  short: 'Check Q', icon: CheckSquare,
-            path: '/checker-queue',
-            permission: 'checkerQueue',
-            badge: queueCounts.checker, badgeColor: '#0891b2'
-        });
-    }
-    if (role === 'Final Approver' || role === 'Admin') {
-        workflowItems.push({
-            name: 'Final Approval',  short: 'Final Q', icon: Award,
-            path: '/final-approval-queue',
-            permission: 'finalApproval',
-            badge: queueCounts.final,   badgeColor: '#16a34a'
-        });
-    }
+    workflowItems.push({
+        name: 'L1 Approval Queue',  short: 'L1 Queue', icon: Inbox,
+        path: '/workflow-queue/l1',
+        permission: 'l1ApprovalQueue',
+        badge: queueCounts.l1,      badgeColor: '#f59e0b'
+    });
+    workflowItems.push({
+        name: 'Design Queue',  short: 'Design Q', icon: Pencil,
+        path: '/design-queue',
+        permission: 'designQueue',
+        badge: queueCounts.design,  badgeColor: '#7c3aed'
+    });
+    workflowItems.push({
+        name: 'Checker Queue',  short: 'Check Q', icon: CheckSquare,
+        path: '/checker-queue',
+        permission: 'checkerQueue',
+        badge: queueCounts.checker, badgeColor: '#0891b2'
+    });
+    workflowItems.push({
+        name: 'Final Approval',  short: 'Final Q', icon: Award,
+        path: '/final-approval-queue',
+        permission: 'finalApproval',
+        badge: queueCounts.final,   badgeColor: '#16a34a'
+    });
 
     const NAV_SECTIONS = [
         { label: 'OPERATIONS', items: [
@@ -392,7 +385,7 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
                                                 style={{ marginBottom: isSidebarOpen ? 2 : 0 }}
                                             >
                                                 <NavLink to={item.path} end={item.path === '/'} className="block outline-none">
-                                                    {({ isActive: navActive }) => (
+                                                    {() => (
                                                         isSidebarOpen ? (
                                                             /* ── EXPANDED item ── */
                                                             <motion.div
@@ -403,22 +396,22 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
                                                                     alignItems: 'center',
                                                                     padding: '10px 14px',
                                                                     borderRadius: 10,
-                                                                    borderLeft: navActive ? '3px solid #fff' : '3px solid transparent',
-                                                                    background: navActive ? 'rgba(255,255,255,0.15)' : 'transparent',
+                                                                    borderLeft: isActive ? '3px solid #fff' : '3px solid transparent',
+                                                                    background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent',
                                                                     cursor: 'pointer',
                                                                     transition: 'all 0.18s ease',
                                                                 }}
-                                                                onMouseEnter={e => { if (!navActive) e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; }}
-                                                                onMouseLeave={e => { if (!navActive) e.currentTarget.style.background = 'transparent'; }}
+                                                                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; }}
+                                                                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                                                             >
                                                                 <item.icon
                                                                     size={20}
-                                                                    style={{ marginRight:12, flexShrink:0, color: navActive ? tc.text : tc.muted }}
+                                                                    style={{ marginRight:12, flexShrink:0, color: isActive ? tc.text : tc.muted }}
                                                                 />
                                                                 <span style={{
                                                                     fontSize: 13,
-                                                                    fontWeight: navActive ? 700 : 600,
-                                                                    color: navActive ? tc.text : tc.muted,
+                                                                    fontWeight: isActive ? 700 : 600,
+                                                                    color: isActive ? tc.text : tc.muted,
                                                                     fontFamily: font.style,
                                                                     whiteSpace: 'nowrap',
                                                                     overflow: 'hidden',
@@ -468,11 +461,11 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
                                                                 }}>
                                                                     <div style={{
                                                                         width: 36, height: 36, borderRadius: 8,
-                                                                        background: navActive ? `${theme.accent}33` : tc.iconBg,
+                                                                        background: isActive ? `${theme.accent}33` : tc.iconBg,
                                                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                                         transition: 'background 0.18s ease',
                                                                     }}>
-                                                                        <item.icon size={18} color={navActive ? theme.accent : tc.text80} />
+                                                                        <item.icon size={18} color={isActive ? theme.accent : tc.text80} />
                                                                     </div>
                                                                     {/* Dot badge for collapsed mode */}
                                                                     {item.badge > 0 && (
@@ -498,7 +491,7 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
                                                                 <div style={{
                                                                     fontSize: 9,
                                                                     /* Theme-aware text color — visible on white sidebar too */
-                                                                    color: navActive ? theme.accent : tc.muted,
+                                                                    color: isActive ? theme.accent : tc.muted,
                                                                     marginTop: 4, textAlign: 'center', lineHeight: 1.2,
                                                                     maxWidth: 56, whiteSpace: 'normal',
                                                                 }}>

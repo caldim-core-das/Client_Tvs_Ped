@@ -7,9 +7,9 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
-import axios from 'axios';
 import {
     l1Approve, l1Reject,
+    assignDesignTeam,
     submitDesign,
     checkDesign,
     finalApprove,
@@ -18,24 +18,6 @@ import {
 } from '../../api/workflowApi';
 import { CheckCircle2, XCircle, Send, PlayCircle, Loader2, Info, AlertTriangle } from 'lucide-react';
 
-const getApiBaseUrl = () => {
-    if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-    if (import.meta.env.VITE_API_BASE_URL) {
-        const base = import.meta.env.VITE_API_BASE_URL;
-        return base.endsWith('/api') ? base : `${base}/api`;
-    }
-    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        return '/Tvs/api';
-    }
-    return 'http://localhost:5000/api';
-};
-
-const BASE_URL = getApiBaseUrl();
-const getAuthHeader = () => {
-    const t = sessionStorage.getItem('token');
-    return t ? { Authorization: `Bearer ${t}` } : {};
-};
-
 // ─── Toast messaging per action — mirrors the enterprise notification copy ────
 const leadTimeSuffix = (lt) => {
     if (!lt || lt.consumedDays === undefined || lt.consumedDays === null) return '';
@@ -43,9 +25,9 @@ const leadTimeSuffix = (lt) => {
 };
 
 const SUCCESS_TOASTS = {
-    l1approve:      (lt) => `Designer & Checker Assigned.${leadTimeSuffix(lt)}`,
-    l1reject:       () => 'MH Request Rejected. Requester notified.',
-    assigndesigner: () => 'Designer assigned successfully! Notification email sent.',
+    l1approve:        (lt) => `PED Engineer Assigned.${leadTimeSuffix(lt)}`,
+    l1reject:         () => 'MH Request Rejected. Requester notified.',
+    assigndesignteam: (lt) => `Designer & Checker Assigned.${leadTimeSuffix(lt)}`,
     submitdesign:   (lt) => `Design Submitted. Checker notified.${leadTimeSuffix(lt)}`,
     designerreject: () => 'Request Returned to Requester.',
     checkerapprove: (lt) => `Checker Approved Design. Final Approver notified.${leadTimeSuffix(lt)}`,
@@ -448,7 +430,8 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
     const [loading, setLoading] = useState(false);
     const [error, setError]     = useState('');
 
-    // Fields for L1 approve (designer + checker select)
+    // Fields for L1 approve (PED Engineer select) and PED Engineer assignment (designer + checker select)
+    const [engineerId, setEngineerId] = useState('');
     const [designerId, setDesignerId] = useState('');
     const [checkerId,  setCheckerId]  = useState('');
 
@@ -480,19 +463,26 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
     const panels = [];
     let actionSummary = '';
 
-    // L1 Approver / PED Engineer: SUBMITTED, Assigned, or DESIGN_IN_PROGRESS
-    if ((role === 'L1 Approver' || role === 'PED Engineer' || role === 'Admin') &&
-        ['SUBMITTED', 'Notified', 'Assigned', 'L1_APPROVED', 'Pending', 'DESIGN_IN_PROGRESS', 'DESIGN_REJECTED'].includes(workflowState)) {
-        actionSummary = actionSummary || "Select a Designer from Employee Master to assign them for product design. A notification email will be sent automatically.";
+    // L1 Approver: SUBMITTED — Approve (assigns a PED Engineer) or Reject
+    if ((role === 'L1 Approver' || role === 'Admin') && workflowState === 'SUBMITTED') {
+        actionSummary = "Review this request, then approve and assign a PED Engineer to take it forward — or reject it.";
+        panels.push(
+            <div key="l1" className="flex gap-3">
+                <ActionButton config={BTN.approve} labelOverride="Approve & Assign PED Engineer" onClick={() => setModal('l1approve')} />
+                <ActionButton config={BTN.reject} onClick={() => setModal('l1reject')} />
+            </div>
+        );
+    }
+
+    // PED Engineer: L1_APPROVED — assign Designer + Checker together
+    if ((role === 'PED Engineer' || role === 'Admin') && workflowState === 'L1_APPROVED') {
+        actionSummary = "Select a Designer and a Checker from Employee Master to move this request into active design work. Both will be notified automatically.";
         panels.push(
             <div key="ped-assign" className="flex flex-col gap-3">
                 <ActionButton
-                    config={{ base: 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-600/20', icon: Send, label: 'Assign Designer' }}
-                    onClick={() => setModal('assigndesigner')}
+                    config={{ base: 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-600/20', icon: Send, label: 'Assign Design Team' }}
+                    onClick={() => setModal('assigndesignteam')}
                 />
-                {role === 'L1 Approver' && workflowState === 'SUBMITTED' && (
-                    <ActionButton config={BTN.reject} onClick={() => setModal('l1reject')} />
-                )}
             </div>
         );
     }
@@ -602,13 +592,19 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
 
     if (!panels.length) return null;
 
-    const designerEmps = employees.filter(e => /^designer$/i.test(e.role || ''));
+    const designerEmps = employees.filter(e => /^\s*designer\s*$/i.test(e.role || ''));
     const designerOptions = (designerEmps.length > 0 ? designerEmps : employees).map(e => (
         <option key={e._id} value={e._id}>{e.employeeName} ({e.employeeId} · {e.departmentName || e.role})</option>
     ));
 
-    const empOptions = employees.map(e => (
-        <option key={e._id} value={e._id}>{e.employeeName} ({e.employeeId})</option>
+    const checkerEmps = employees.filter(e => /^\s*checker\s*$/i.test(e.role || ''));
+    const checkerOptions = (checkerEmps.length > 0 ? checkerEmps : employees).map(e => (
+        <option key={e._id} value={e._id}>{e.employeeName} ({e.employeeId} · {e.departmentName || e.role})</option>
+    ));
+
+    const engineerEmps = employees.filter(e => /^\s*ped engineer\s*$/i.test(e.role || ''));
+    const engineerOptions = (engineerEmps.length > 0 ? engineerEmps : employees).map(e => (
+        <option key={e._id} value={e._id}>{e.employeeName} ({e.employeeId} · {e.departmentName || e.role})</option>
     ));
 
     return (
@@ -641,39 +637,37 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
             </div>
 
             {/* ── Modals ── */}
-            {modal === 'assigndesigner' && (
+            {modal === 'l1approve' && (
                 <CommentModal
-                    title="Assign Designer for Product Design"
+                    title="L1 Approval — Assign PED Engineer"
                     required={false}
                     extraFields={
                         <div className="flex flex-col gap-4 mb-6">
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">
-                                    Select Designer <span className="text-red-500">*</span>
+                                    Assign PED Engineer <span className="text-red-500">*</span>
                                 </label>
-                                <select
-                                    value={designerId}
-                                    onChange={e => setDesignerId(e.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-slate-50 font-medium text-slate-800"
-                                >
-                                    <option value="">Choose a Designer from list...</option>
-                                    {designerOptions}
+                                <select value={engineerId} onChange={e => setEngineerId(e.target.value)}
+                                    className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-slate-50">
+                                    <option value="">Select PED Engineer</option>
+                                    {engineerOptions}
                                 </select>
                             </div>
                         </div>
                     }
                     onClose={() => setModal(null)}
                     onConfirm={({ comment }) => exec(async () => {
-                        if (!designerId) throw new Error('Please select a Designer to proceed');
-                        const res = await axios.patch(`${BASE_URL}/asset-request/${requestId}/assign-designer`, { designerId }, { headers: getAuthHeader() });
+                        if (!engineerId) throw new Error('A PED Engineer must be assigned for L1 Approval');
+                        const result = await l1Approve(requestId, { comment, assignEngineerId: engineerId });
                         setModal(null);
-                        return res.data;
-                    }, 'assigndesigner')}
+                        return result;
+                    }, 'l1approve')}
                 />
             )}
-            {modal === 'l1approve' && (
+
+            {modal === 'assigndesignteam' && (
                 <CommentModal
-                    title="L1 Approval Authorization"
+                    title="Assign Design Team"
                     required={false}
                     extraFields={
                         <div className="flex flex-col gap-4 mb-6">
@@ -682,9 +676,9 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
                                     Assign Designer <span className="text-red-500">*</span>
                                 </label>
                                 <select value={designerId} onChange={e => setDesignerId(e.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-slate-50">
+                                    className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-slate-50">
                                     <option value="">Select Designer</option>
-                                    {empOptions}
+                                    {designerOptions}
                                 </select>
                             </div>
                             <div>
@@ -692,20 +686,20 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
                                     Assign Checker <span className="text-red-500">*</span>
                                 </label>
                                 <select value={checkerId} onChange={e => setCheckerId(e.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-slate-50">
+                                    className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-slate-50">
                                     <option value="">Select Checker</option>
-                                    {empOptions}
+                                    {checkerOptions}
                                 </select>
                             </div>
                         </div>
                     }
                     onClose={() => setModal(null)}
                     onConfirm={({ comment }) => exec(async () => {
-                        if (!designerId || !checkerId) throw new Error('Designer and Checker assignments are required for L1 Approval');
-                        const result = await l1Approve(requestId, { comment, assignDesignerId: designerId, assignCheckerId: checkerId });
+                        if (!designerId || !checkerId) throw new Error('Designer and Checker assignments are required');
+                        const result = await assignDesignTeam(requestId, { comment, assignDesignerId: designerId, assignCheckerId: checkerId });
                         setModal(null);
                         return result;
-                    }, 'l1approve')}
+                    }, 'assigndesignteam')}
                 />
             )}
 

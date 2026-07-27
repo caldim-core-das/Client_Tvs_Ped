@@ -30,9 +30,9 @@ const ROLE_PERMISSIONS = {
         settings: false
     },
     'PED Engineer': {
-        dashboard: true, mhRequest: false, allRequestsOverview: true,
+        dashboard: true, mhRequest: true, allRequestsOverview: true,
         mhDevelopment: true, projectPlanTracking: true,
-        l1ApprovalQueue: false, designQueue: false, checkerQueue: false, finalApproval: false,
+        l1ApprovalQueue: true, designQueue: true, checkerQueue: false, finalApproval: false,
         assetManagement: true, assetSummary: true, designLibrary: true,
         employeeMaster: false, vendorMaster: false, vendorScoring: false, vendorLoading: false,
         settings: false

@@ -1,32 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import axios from 'axios';
 import { getWorkflowQueue } from '../../api/workflowApi';
 import { useAuth } from '../../context/AuthContext';
 import LeadTimeChip from '../../components/LeadTimeChip';
 
-const getApiBaseUrl = () => {
-    if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-    if (import.meta.env.VITE_API_BASE_URL) {
-        const base = import.meta.env.VITE_API_BASE_URL;
-        return base.endsWith('/api') ? base : `${base}/api`;
-    }
-    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        return '/Tvs/api';
-    }
-    return 'http://localhost:5000/api';
-};
-
-const BASE_URL = getApiBaseUrl();
-const getAuthHeader = () => {
-    const t = sessionStorage.getItem('token');
-    return t ? { Authorization: `Bearer ${t}` } : {};
-};
-
 const STATE_COLORS = {
-    DESIGN_IN_PROGRESS: { bg: '#f5f3ff', color: '#7c3aed', label: 'In Progress' },
-    DESIGN_REJECTED:    { bg: '#fef2f2', color: '#dc2626', label: 'Revision Required' },
+    L1_APPROVED:         { bg: '#eff6ff', color: '#2563eb', label: 'Awaiting Design Team Assignment' },
+    DESIGN_IN_PROGRESS:  { bg: '#f5f3ff', color: '#7c3aed', label: 'In Progress' },
+    DESIGN_REJECTED:     { bg: '#fef2f2', color: '#dc2626', label: 'Revision Required' },
 };
 
 export default function DesignQueuePage() {
@@ -35,9 +17,6 @@ export default function DesignQueuePage() {
     const role = user?.role;
 
     const [items, setItems] = useState([]);
-    const [designers, setDesigners] = useState([]);
-    const [selectedDesigners, setSelectedDesigners] = useState({});
-    const [assigningId, setAssigningId] = useState(null);
     const [loading, setLoading] = useState(true);
 
     const loadQueue = async () => {
@@ -54,42 +33,16 @@ export default function DesignQueuePage() {
 
     useEffect(() => {
         loadQueue();
-
-        // Fetch active Designers from Employee Master
-        axios.get(`${BASE_URL}/employees?limit=100`, { headers: getAuthHeader() })
-            .then(res => {
-                const list = (res.data?.data || []).filter(e => /^designer$/i.test(e.role || ''));
-                setDesigners(list);
-            })
-            .catch(() => setDesigners([]));
     }, []);
-
-    const handleAssignDesigner = async (reqId, e) => {
-        e.stopPropagation();
-        const designerId = selectedDesigners[reqId];
-        if (!designerId) {
-            toast.error('Please select a Designer first');
-            return;
-        }
-
-        setAssigningId(reqId);
-        try {
-            await axios.patch(`${BASE_URL}/asset-request/${reqId}/assign-designer`, { designerId }, { headers: getAuthHeader() });
-            toast.success('Designer assigned successfully! Notification email sent.');
-            await loadQueue();
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to assign designer');
-        } finally {
-            setAssigningId(null);
-        }
-    };
 
     return (
         <div style={{ padding: '24px 20px', fontFamily: "'Inter','Segoe UI',sans-serif", width: '100%' }}>
             <div style={{ marginBottom: 24 }}>
                 <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f172a' }}>🎨 Design Queue</h1>
                 <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: 14 }}>
-                    Requests assigned or pending design work
+                    {role === 'PED Engineer'
+                        ? 'Requests awaiting a Designer & Checker assignment, or already in progress. Open a request to assign the design team.'
+                        : 'Requests assigned or pending design work'}
                 </p>
             </div>
 
@@ -160,55 +113,25 @@ export default function DesignQueuePage() {
                                     </div>
                                 )}
 
-                                {/* ── PED Engineer / Admin Assignment Row ── */}
-                                {(role === 'PED Engineer' || role === 'Admin' || role === 'L1 Approver') && (
-                                    <div
-                                        onClick={e => e.stopPropagation()}
-                                        style={{
-                                            borderTop: '1px solid #f1f5f9', paddingTop: 12,
-                                            display: 'flex', alignItems: 'center', justifyContent: 'between', gap: 12,
-                                            background: '#f8fafc', padding: '10px 14px', borderRadius: 8
-                                        }}
-                                    >
-                                        <div style={{ fontSize: 12, color: '#334155', fontWeight: 600, flex: 1 }}>
-                                            Assigned Designer: <strong style={{ color: assignedDesignerName ? '#0f172a' : '#7c3aed' }}>
-                                                {assignedDesignerName || 'Not Assigned Yet'}
-                                            </strong>
-                                        </div>
-
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <select
-                                                value={selectedDesigners[req._id] || ''}
-                                                onChange={e => setSelectedDesigners({ ...selectedDesigners, [req._id]: e.target.value })}
-                                                style={{
-                                                    padding: '6px 12px', fontSize: 13, borderRadius: 6,
-                                                    border: '1px solid #cbd5e1', background: '#fff', color: '#1e293b',
-                                                    outline: 'none', fontWeight: 500
-                                                }}
-                                            >
-                                                <option value="">Select Designer to Assign...</option>
-                                                {designers.map(d => (
-                                                    <option key={d._id} value={d._id}>
-                                                        {d.employeeName} ({d.employeeId} · {d.departmentName || 'Designer'})
-                                                    </option>
-                                                ))}
-                                            </select>
-
-                                            <button
-                                                type="button"
-                                                disabled={assigningId === req._id || !selectedDesigners[req._id]}
-                                                onClick={e => handleAssignDesigner(req._id, e)}
-                                                style={{
-                                                    background: !selectedDesigners[req._id] ? '#94a3b8' : '#7c3aed',
-                                                    color: '#fff', border: 'none', borderRadius: 6,
-                                                    padding: '6px 16px', fontSize: 12, fontWeight: 700,
-                                                    cursor: !selectedDesigners[req._id] ? 'not-allowed' : 'pointer',
-                                                    transition: 'background 0.15s'
-                                                }}
-                                            >
-                                                {assigningId === req._id ? 'Assigning...' : 'Assign Designer'}
-                                            </button>
-                                        </div>
+                                {/* ── Assignment status row ── */}
+                                {req.workflowState !== 'L1_APPROVED' && (
+                                    <div style={{
+                                        borderTop: '1px solid #f1f5f9', paddingTop: 12,
+                                        fontSize: 12, color: '#334155', fontWeight: 600,
+                                        background: '#f8fafc', padding: '10px 14px', borderRadius: 8
+                                    }}>
+                                        Assigned Designer: <strong style={{ color: assignedDesignerName ? '#0f172a' : '#7c3aed' }}>
+                                            {assignedDesignerName || 'Not Assigned Yet'}
+                                        </strong>
+                                    </div>
+                                )}
+                                {req.workflowState === 'L1_APPROVED' && (
+                                    <div style={{
+                                        borderTop: '1px solid #f1f5f9', paddingTop: 12,
+                                        fontSize: 12, color: '#2563eb', fontWeight: 700,
+                                        background: '#eff6ff', padding: '10px 14px', borderRadius: 8
+                                    }}>
+                                        Open this request to assign a Designer and Checker.
                                     </div>
                                 )}
                             </div>

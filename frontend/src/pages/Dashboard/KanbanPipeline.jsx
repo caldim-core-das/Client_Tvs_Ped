@@ -14,7 +14,14 @@ const PHASE_STAGES = [
     { id: 'Released', title: 'Released', colour: '#CC1F1F', dbStage: 'Completed' },
 ];
 
-const KanbanPipeline = ({ pipelineItems = [], kpiSettings = {}, onPhaseClick }) => {
+// Stable references so the `pipelineItems`/`kpiSettings` defaults don't create a new
+// array/object on every render when the caller passes undefined — a fresh []/{} each
+// render would sit in the useEffect dependency array below and re-trigger it forever
+// (infinite render loop / "Maximum update depth exceeded").
+const EMPTY_PIPELINE_ITEMS = [];
+const EMPTY_KPI_SETTINGS = {};
+
+const KanbanPipeline = ({ pipelineItems = EMPTY_PIPELINE_ITEMS, kpiSettings = EMPTY_KPI_SETTINGS, onPhaseClick }) => {
     const [columns, setColumns] = useState({});
     
     // Filters State
