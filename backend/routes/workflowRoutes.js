@@ -8,6 +8,7 @@ const {
     getWorkflowQueue,
     l1Approve,
     l1Reject,
+    assignDesignTeam,
     submitDesign,
     checkDesign,
     finalApprove,
@@ -48,6 +49,15 @@ router.post(
     '/:requestId/l1-reject',
     requireWorkflowRole('L1 Approver', 'Admin'),
     l1Reject
+);
+
+// ─── PED Engineer Assignment Stage ────────────────────────────────────────────
+
+// POST /api/workflow/:requestId/assign-design-team
+router.post(
+    '/:requestId/assign-design-team',
+    requireWorkflowRole('PED Engineer', 'Admin'),
+    assignDesignTeam
 );
 
 // ─── Design Stage ─────────────────────────────────────────────────────────────

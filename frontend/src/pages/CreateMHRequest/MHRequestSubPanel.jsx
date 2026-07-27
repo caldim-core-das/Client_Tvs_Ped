@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Drawer, Tabs, Tag, Steps, Spin, Button, Collapse, Divider, Tooltip, Select, message
+    Drawer, Tabs, Tag, Steps, Spin, Collapse, Divider, Tooltip
 } from 'antd';
 import {
     FileText, Mail, GitBranch, Clock, User, MapPin,
@@ -70,9 +70,6 @@ const MHRequestSubPanel = ({ requestId, visible, onClose }) => {
     const [request, setRequest] = useState(null);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('1');
-    const [designers, setDesigners] = useState([]);
-    const [selectedDesignerId, setSelectedDesignerId] = useState(null);
-    const [assigningDesigner, setAssigningDesigner] = useState(false);
 
     useEffect(() => {
         if (!visible || !requestId) return;
@@ -81,30 +78,7 @@ const MHRequestSubPanel = ({ requestId, visible, onClose }) => {
             .then(res => setRequest(res.data))
             .catch(() => setRequest(null))
             .finally(() => setLoading(false));
-
-        // Fetch active Designers from Employee Master
-        api.get('/employees?limit=100')
-            .then(res => {
-                const list = (res.data?.data || []).filter(e => /^designer$/i.test(e.role || ''));
-                setDesigners(list);
-            })
-            .catch(() => setDesigners([]));
     }, [visible, requestId]);
-
-    const handleAssignDesigner = async () => {
-        if (!selectedDesignerId || !requestId) return;
-        setAssigningDesigner(true);
-        try {
-            await api.patch(`/asset-request/${requestId}/assign-designer`, { designerId: selectedDesignerId });
-            const res = await api.get(`/asset-request/${requestId}`);
-            setRequest(res.data);
-            message.success('Designer assigned successfully! Email notification sent.');
-        } catch (err) {
-            message.error(err.response?.data?.message || 'Failed to assign designer.');
-        } finally {
-            setAssigningDesigner(false);
-        }
-    };
 
     // ── Compute stepper current index ──────────────────────────────────────
     const workflowStatus = request?.workflowStatus || 'Pending';
@@ -249,41 +223,17 @@ const MHRequestSubPanel = ({ requestId, visible, onClose }) => {
                                     )}
                                 </div>
 
-                                {/* ── PED Engineer Action: Select and Assign a Designer ── */}
-                                <div className="col-span-2 mt-2 p-4 bg-purple-50/70 border border-purple-100 rounded-xl">
-                                    <p className="text-xs font-bold text-purple-900 mb-1 flex items-center gap-1.5">
-                                        🎨 Assign a Designer for Product Design
-                                    </p>
-                                    <p className="text-xs text-gray-500 mb-3">
-                                        Select a Designer from Employee Master to assign them to this MH Request. The designer will receive an email notification automatically.
-                                    </p>
-                                    <div className="flex items-center gap-3">
-                                        <Select
-                                            placeholder="Select a Designer..."
-                                            style={{ flex: 1 }}
-                                            value={selectedDesignerId}
-                                            onChange={setSelectedDesignerId}
-                                            size="middle"
-                                        >
-                                            {designers.map(d => (
-                                                <Select.Option key={d._id} value={d._id}>
-                                                    {d.employeeName} ({d.employeeId} · {d.departmentName || 'Designer'})
-                                                </Select.Option>
-                                            ))}
-                                        </Select>
-                                        <Button
-                                            type="primary"
-                                            danger
-                                            loading={assigningDesigner}
-                                            disabled={!selectedDesignerId}
-                                            onClick={handleAssignDesigner}
-                                            size="middle"
-                                            className="font-bold"
-                                        >
-                                            Assign Designer
-                                        </Button>
+                                {/* ── Assignment happens in the Workflow Action Center, not here ── */}
+                                {!request.assignedDesigner && (
+                                    <div className="col-span-2 mt-2 p-4 bg-purple-50/70 border border-purple-100 rounded-xl">
+                                        <p className="text-xs font-bold text-purple-900 mb-1 flex items-center gap-1.5">
+                                            🎨 Design Team Not Yet Assigned
+                                        </p>
+                                        <p className="text-xs text-gray-500 m-0">
+                                            Once L1 Approval is complete, the assigned PED Engineer assigns a Designer and Checker together from this request's Workflow page.
+                                        </p>
                                     </div>
-                                </div>
+                                )}
                             </div>
                         </div>
                     </TabPane>

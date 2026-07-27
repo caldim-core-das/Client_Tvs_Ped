@@ -12,20 +12,23 @@ const { computeLeadTimeStatus } = require('../utils/leadTimeStatus');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enterprise Workflow v2: notify the L1 Approver on request submission.
-// Replaces the legacy "assign a PED Engineer" email — L1 now assigns
-// Designer + Checker directly from the portal (see workflowController.l1Approve).
+// The email includes a one-click "Assign" link per PED Engineer (assignEngineerFromLink
+// below) as a fast path. The L1 Approver can otherwise log in to the portal and use the
+// same PED Engineer assignment via workflowController.l1Approve. Either path moves the
+// request to L1_APPROVED; the assigned PED Engineer then logs in to assign a Designer +
+// Checker together (see workflowController.assignDesignTeam).
 // ─────────────────────────────────────────────────────────────────────────────
 async function notifyL1OnSubmission(savedRequest, estimate, requester) {
     try {
         // 1. Fetch L1 Approvers from Employee Master
         const dept = savedRequest.departmentName;
         let approvers = await Employee.find({
-            role: 'L1 Approver',
-            status: 'Active'
+            role: /^\s*l1 approver\s*$/i,
+            status: /^\s*active\s*$/i
         }).lean();
 
         if (!approvers || approvers.length === 0) {
-            const fallbackApprover = await Employee.findOne({ status: 'Active' }).lean();
+            const fallbackApprover = await Employee.findOne({ status: /^\s*active\s*$/i }).lean();
             if (fallbackApprover) approvers = [fallbackApprover];
         }
 
@@ -36,14 +39,14 @@ async function notifyL1OnSubmission(savedRequest, estimate, requester) {
 
         // 2. Fetch active PED Engineers ONLY from Employee Master (excluding Designers & Requesters)
         let pedEngineers = await Employee.find({
-            status: 'Active',
-            role: /^ped engineer$/i
+            status: /^\s*active\s*$/i,
+            role: /^\s*ped engineer\s*$/i
         }).sort({ employeeName: 1 }).lean();
 
         if (!pedEngineers || pedEngineers.length === 0) {
             pedEngineers = await Employee.find({
-                status: 'Active',
-                role: 'PED Engineer'
+                status: /^\s*active\s*$/i,
+                role: { $regex: /ped.*engineer/i }
             }).sort({ employeeName: 1 }).lean();
         }
 
@@ -768,7 +771,7 @@ a{background:#B31818;color:#fff;padding:12px 28px;border-radius:8px;text-decorat
         const request = await MHRequest.findOneAndUpdate(
             reqQuery,
             {
-                $set: { assignedEngineer: engineer._id, assignedAt: new Date(), workflowStatus: 'Assigned' },
+                $set: { assignedEngineer: engineer._id, assignedAt: new Date(), workflowStatus: 'Assigned', workflowState: 'L1_APPROVED', workflowVersion: 2, currentStage: 2, status: 'Accepted' },
                 $push: {
                     history: { action: 'Updated', date: new Date(), details: `Engineer ${engineer.employeeName} (${engineer.employeeId}) assigned via email link` },
                     stageHistory: {

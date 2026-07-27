@@ -28,6 +28,13 @@ export const l1Reject = async (requestId, payload) => {
     return res.data;
 };
 
+// ─── PED Engineer Assignment ──────────────────────────────────────────────────
+
+export const assignDesignTeam = async (requestId, payload) => {
+    const res = await api.post(`/workflow/${requestId}/assign-design-team`, payload);
+    return res.data;
+};
+
 // ─── Design Stage ─────────────────────────────────────────────────────────────
 
 export const submitDesign = async (requestId, formData) => {
