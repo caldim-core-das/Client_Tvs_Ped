@@ -5,7 +5,9 @@ import { Layout, List, FolderOpen, Calendar, Clock, AlertCircle } from 'lucide-r
 import { Spin, message } from 'antd';
 import dayjs from 'dayjs';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+import { getApiBaseUrl } from '../../api/axiosConfig';
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Reusable status badge component
 const StatusBadge = ({ state }) => {

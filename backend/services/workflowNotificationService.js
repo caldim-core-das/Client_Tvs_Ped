@@ -216,7 +216,7 @@ function buildEmailTemplate(event, data) {
             html: `${header('Design Assignment Notification')}
               <p style="font-size:14px;color:#0f172a;margin-top:0;">Dear <strong>${recipient.name}</strong>,</p>
               <p style="color:#475569;font-size:14px;line-height:1.5;margin-bottom:20px;">
-                For the MH request <strong>${request.mhRequestId}</strong>, the PED Engineer has chosen you to design the product. Please log in to the portal and begin your design work.
+                For the MH request <strong>${request.mhRequestId}</strong>, the PED Engineer has chosen you to design the product. Please log in to the portal to begin your design work.
               </p>
               ${requestDetailsTable}
               ${leadTimeStatusBlock}

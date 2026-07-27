@@ -3,6 +3,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Clock, AlertTriangle, User, Hash, Search, Filter, Maximize2, Minimize2 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import api from '../../api/axiosConfig';
 
 const PHASE_STAGES = [
     { id: 'Initiated', title: 'Initiated', colour: '#64748B', dbStage: 'Not Started' },
@@ -100,11 +101,7 @@ const KanbanPipeline = ({ pipelineItems = [], kpiSettings = {}, onPhaseClick }) 
         if (!targetPhase) return;
 
         try {
-            const token = sessionStorage.getItem('token');
-            await axios.put(`http://localhost:5000/api/mh-development-tracker/${movedItem._id}`, 
-                { currentStage: targetPhase.dbStage },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            await api.put(`/mh-development-tracker/${movedItem._id}`, { currentStage: targetPhase.dbStage });
             toast.success('Stage updated successfully');
         } catch (error) {
             console.error('Failed to update stage:', error);

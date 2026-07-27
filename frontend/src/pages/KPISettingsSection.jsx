@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Target, Save } from 'lucide-react';
 import { message } from 'antd';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+import api from '../api/axiosConfig';
 
 const KPISettingsSection = () => {
     const [loading, setLoading] = useState(false);
@@ -27,9 +27,7 @@ const KPISettingsSection = () => {
 
     const fetchSettings = async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/kpi-settings`, {
-                headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-            });
+            const response = await api.get('/kpi-settings');
             if (response.data) {
                 setSettings(response.data);
             }
@@ -59,9 +57,7 @@ const KPISettingsSection = () => {
     const handleSave = async () => {
         setLoading(true);
         try {
-            await axios.put(`${API_BASE_URL}/api/kpi-settings`, settings, {
-                headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-            });
+            await api.put('/kpi-settings', settings);
             message.success('KPI settings saved successfully');
         } catch (error) {
             console.error('Error saving KPI settings:', error);

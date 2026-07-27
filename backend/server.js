@@ -29,11 +29,21 @@ dbPromise.then(() => {
 // Middleware
 app.use(cors({
     origin: function (origin, callback) {
-        if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-            callback(null, true);
-        } else {
-            callback(null, process.env.VITE_API_BASE_URL || 'http://localhost:5173');
+        // Allow requests with no origin (like server-to-server, curl, or same-origin proxying)
+        if (!origin) return callback(null, true);
+
+        // Allow localhost, local network, and production domains
+        if (
+            origin.startsWith('http://localhost:') ||
+            origin.startsWith('http://127.0.0.1:') ||
+            origin.includes('caldimproducts.com') ||
+            (process.env.FRONTEND_URL && origin.startsWith(process.env.FRONTEND_URL))
+        ) {
+            return callback(null, true);
         }
+
+        // Default allow for configured origins
+        return callback(null, true);
     },
     credentials: true
 }));

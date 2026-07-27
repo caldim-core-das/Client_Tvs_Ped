@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Card, Tag, Badge, message, Typography, Button, Space, Popconfirm, Modal, Form, Input, Switch, InputNumber } from 'antd';
 import { Layers, Eye, Edit2, Trash2, Plus, MinusCircle } from 'lucide-react';
 import axios from 'axios';
+import api from '../../api/axiosConfig';
 
 const { Title, Text } = Typography;
 
@@ -24,11 +25,7 @@ const DesignLibraryPage = () => {
     const fetchDesigns = async () => {
         try {
             setLoading(true);
-            const token = sessionStorage.getItem('token');
-            const baseURL = import.meta.env.VITE_API_BASE_URL || '';
-            const res = await axios.get(`${baseURL}/api/design-library`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get(`/design-library`);
             setData(res.data.data);
         } catch (err) {
             console.error('Error fetching design library', err);

@@ -6,7 +6,9 @@ import { Modal } from 'antd';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+import { getApiBaseUrl } from '../api/axiosConfig';
+
+const API_BASE_URL = getApiBaseUrl();
 
 /* ── Route → Display name map ── */
 const routeNameMap = {

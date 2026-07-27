@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchVendors, deleteVendor } from '../../redux/slices/vendorSlice';
 import { Modal } from 'antd';
+import { getApiBaseUrl } from '../../api/axiosConfig';
 import { DataGrid } from 'react-data-grid';
 import 'react-data-grid/lib/styles.css';
 import FreezeToolbar from '../../components/FreezeToolbar';
@@ -146,7 +147,7 @@ const VendorMaster = () => {
 
     const handleConfirmImport = async () => {
         try {
-            const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '') + '/api';
+            const API_BASE_URL = getApiBaseUrl();
             const token = sessionStorage.getItem('token');
 
             let successCount = 0;

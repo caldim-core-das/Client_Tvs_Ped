@@ -821,7 +821,7 @@ const EmployeeForm = ({ mode = 'add' }) => {
                                 </span>
                             </div>
                             <span className="font-semibold text-tvs-primary">
-                                {Object.values(permissions).filter(Boolean).length} of {permissionList.length} permissions granted
+                                {permissionList.filter(p => permissions[p.id] === true).length} of {permissionList.length} permissions granted
                             </span>
                         </div>
                     </div>

@@ -5,25 +5,22 @@ import { Spin, message } from 'antd';
 import { useAuth } from '../context/AuthContext';
 import dayjs from 'dayjs';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+import api from '../api/axiosConfig';
 
 const NotificationLogSection = () => {
     const { user } = useAuth();
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
 
-    // Only Admins can view this section
-    if (user?.role !== 'Admin') {
+    // Only Admins / System Admins can view this section
+    if (user?.role !== 'Admin' && user?.role !== 'System Admin') {
         return null;
     }
 
     const fetchLogs = async () => {
         setLoading(true);
         try {
-            const token = sessionStorage.getItem('token');
-            const response = await axios.get(`${API_BASE_URL}/api/workflow/notifications`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.get('/workflow/notifications');
             setLogs(response.data.data || []);
         } catch (error) {
             console.error('Error fetching notification logs:', error);

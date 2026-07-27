@@ -20,7 +20,7 @@ const MHRequestForm = () => {
 
     const serverUrl = import.meta.env.VITE_API_BASE_URL
         ? import.meta.env.VITE_API_BASE_URL.replace(/\/api$/, '')
-        : 'http://localhost:5000';
+        : (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? '/Tvs' : 'http://localhost:5000');
 
     const { currentItem, loading, success, error } = useSelector((state) => state.assetRequests);
     const { user } = useAuth();

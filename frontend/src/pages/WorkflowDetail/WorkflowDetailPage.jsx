@@ -20,7 +20,19 @@ import LeadTimeInsightCard from './LeadTimeInsightCard';
 import StageHistory        from './StageHistory';
 import WorkflowActions     from './WorkflowActions';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const getApiBaseUrl = () => {
+    if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+    if (import.meta.env.VITE_API_BASE_URL) {
+        const base = import.meta.env.VITE_API_BASE_URL;
+        return base.endsWith('/api') ? base : `${base}/api`;
+    }
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        return '/Tvs/api';
+    }
+    return 'http://localhost:5000/api';
+};
+
+const BASE_URL = getApiBaseUrl();
 
 const getAuthHeader = () => {
     const t = sessionStorage.getItem('token');
@@ -62,6 +74,20 @@ export default function WorkflowDetailPage() {
     const [loading,   setLoading]   = useState(true);
     const [error,     setError]     = useState('');
 
+    const loadSilent = useCallback(async () => {
+        // Silent refresh — only updates state/workflow without showing loading spinner or error toast
+        try {
+            const [reqRes, wfRes] = await Promise.all([
+                axios.get(`${BASE_URL}/asset-request/${id}`,  { headers: getAuthHeader() }),
+                axios.get(`${BASE_URL}/workflow/${id}/state`, { headers: getAuthHeader() })
+            ]);
+            setRequest(reqRes.data);
+            setWorkflow(wfRes.data);
+        } catch {
+            // Silently ignore polling errors
+        }
+    }, [id]);
+
     const load = useCallback(async () => {
         setLoading(true);
         setError('');
@@ -85,6 +111,12 @@ export default function WorkflowDetailPage() {
     }, [id]);
 
     useEffect(() => { load(); }, [load]);
+
+    // Live activity feed — poll every 30 seconds to pick up changes made by other users
+    useEffect(() => {
+        const interval = setInterval(() => { loadSilent(); }, 30000);
+        return () => clearInterval(interval);
+    }, [loadSilent]);
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-[400px] text-slate-400">
@@ -322,14 +354,28 @@ export default function WorkflowDetailPage() {
 
                         {/* Activity Timeline */}
                         <section className="bg-white rounded-[18px] shadow-[0_8px_32px_rgba(15,23,42,0.04)] border border-slate-100 overflow-hidden hover:-translate-y-[2px] transition-transform duration-300">
-                            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
-                                <Clock className="text-[#0F4C81]" size={18} />
-                                <h2 className="text-[15px] font-bold text-slate-800 uppercase tracking-wider">Activity Feed</h2>
+                            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                    <Clock className="text-[#0F4C81]" size={18} />
+                                    <h2 className="text-[15px] font-bold text-slate-800 uppercase tracking-wider">Activity Feed</h2>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {(workflow?.stageHistory?.length > 0) && (
+                                        <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">
+                                            {workflow.stageHistory.length} {workflow.stageHistory.length === 1 ? 'event' : 'events'}
+                                        </span>
+                                    )}
+                                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                                        Live
+                                    </span>
+                                </div>
                             </div>
                             <div className="p-6">
                                 <StageHistory stageHistory={workflow?.stageHistory || []} />
                             </div>
                         </section>
+
                     </div>
 
                     {/* Governance Side Panel (30%) */}

@@ -29,7 +29,7 @@ router.get('/:requestId/state', getWorkflowState);
 router.get('/queue/:queueType', getWorkflowQueue);
 
 // GET /api/workflow/notifications — Admin only notification log
-router.get('/notifications', requireWorkflowRole('Admin'), getNotificationLogs);
+router.get('/notifications', requireWorkflowRole('Admin', 'System Admin'), getNotificationLogs);
 
 // GET /api/workflow/lead-time/estimate/:requestId
 router.get('/lead-time/estimate/:requestId', getLeadTimeEstimate);

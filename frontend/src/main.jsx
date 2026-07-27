@@ -13,6 +13,8 @@ import './index.css';
 // Register AG Grid modules GLOBALLY at the entry point
 ModuleRegistry.registerModules([AllCommunityModule]);
 
+console.log('🚀 TVS-PED Production Build Active');
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <Provider store={store}>

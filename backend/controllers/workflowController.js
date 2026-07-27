@@ -187,15 +187,21 @@ const l1Approve = asyncHandler(async (req, res) => {
     // Find the single Final Approver employee
     const finalApproverEmployee = await Employee.findOne({ role: 'Final Approver', status: 'Active' });
 
+
     // Apply state transition
+    const l1Comment = comment
+        ? `${comment} | Assigned Designer: ${designer.employeeName}, Checker: ${checker.employeeName}`
+        : `Approved and assigned Designer: ${designer.employeeName}, Checker: ${checker.employeeName}`;
+
     const historyEntry = buildHistoryEntry({
         stage:   'L1_APPROVAL',
         state:   'L1_APPROVED',
         action:  'APPROVED',
         user:    req.user,
-        comment,
+        comment: l1Comment,
         metadata: { assignedDesigner: assignDesignerId, assignedChecker: assignCheckerId }
     });
+
 
     await MHRequest.findByIdAndUpdate(request._id, {
         workflowState:        'L1_APPROVED',
