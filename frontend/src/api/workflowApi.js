@@ -10,8 +10,8 @@ import api, { uploadApi } from './axiosConfig';
 export const getWorkflowState = (requestId) =>
     api.get(`/workflow/${requestId}/state`);
 
-export const getWorkflowQueue = (queueType) =>
-    api.get(`/workflow/queue/${queueType}`);
+export const getWorkflowQueue = (queueType, params = {}) =>
+    api.get(`/workflow/queue/${queueType}`, { params });
 
 export const getLeadTimeEstimate = (requestId) =>
     api.get(`/workflow/lead-time/estimate/${requestId}`);

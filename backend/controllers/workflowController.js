@@ -120,26 +120,43 @@ const getWorkflowQueue = asyncHandler(async (req, res) => {
         case 'design':
             // L1_APPROVED  → awaiting PED Engineer to assign Designer + Checker
             // DESIGN_IN_PROGRESS / DESIGN_REJECTED → assigned Designer is actively working
-            query.workflowState = { $in: ['L1_APPROVED', 'DESIGN_IN_PROGRESS', 'DESIGN_REJECTED'] };
+            if (req.query.history === 'true') {
+                query.workflowState = { $nin: ['L1_APPROVED', 'DESIGN_IN_PROGRESS', 'DESIGN_REJECTED'] };
+            } else {
+                query.workflowState = { $in: ['L1_APPROVED', 'DESIGN_IN_PROGRESS', 'DESIGN_REJECTED'] };
+            }
+            
             if (req.user.role === 'PED Engineer') {
-                const emp = await Employee.findOne({ userId: userId });
-                if (emp) query.assignedEngineer = emp._id;
+                const empId = req.user.employeeId?._id || req.user.employeeId;
+                if (empId) query.assignedEngineer = empId;
             } else if (req.user.role === 'Designer') {
-                const emp = await Employee.findOne({ userId: userId });
+                const empId = req.user.employeeId?._id || req.user.employeeId;
                 // Designers only care about requests already handed to them for design work
-                query.workflowState = { $in: ['DESIGN_IN_PROGRESS', 'DESIGN_REJECTED'] };
-                if (emp) query.assignedDesigner = emp._id;
+                if (req.query.history === 'true') {
+                    query.workflowState = { $nin: ['L1_APPROVED', 'DESIGN_IN_PROGRESS', 'DESIGN_REJECTED'] };
+                } else {
+                    query.workflowState = { $in: ['DESIGN_IN_PROGRESS', 'DESIGN_REJECTED'] };
+                }
+                if (empId) query.assignedDesigner = empId;
             }
             break;
         case 'checker':
-            query.workflowState = 'DESIGN_SUBMITTED';
+            if (req.query.history === 'true') {
+                query.workflowState = { $in: ['DESIGN_APPROVED', 'FINAL_APPROVED', 'FINAL_REJECTED', 'IN_PRODUCTION', 'IMPLEMENTATION', 'COMPLETED'] };
+            } else {
+                query.workflowState = 'DESIGN_SUBMITTED';
+            }
             if (req.user.role === 'Checker') {
-                const emp = await Employee.findOne({ userId: userId });
-                if (emp) query.assignedChecker = emp._id;
+                const empId = req.user.employeeId?._id || req.user.employeeId;
+                if (empId) query.assignedChecker = empId;
             }
             break;
         case 'final':
-            query.workflowState = 'DESIGN_APPROVED';
+            if (req.query.history === 'true') {
+                query.workflowState = { $in: ['FINAL_APPROVED', 'FINAL_REJECTED', 'IN_PRODUCTION', 'IMPLEMENTATION', 'COMPLETED'] };
+            } else {
+                query.workflowState = 'DESIGN_APPROVED';
+            }
             break;
         case 'production':
             query.workflowState = { $in: ['FINAL_APPROVED', 'IN_PRODUCTION', 'IMPLEMENTATION'] };
