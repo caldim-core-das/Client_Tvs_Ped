@@ -59,18 +59,20 @@ function ActionButton({ config, onClick, labelOverride }) {
     );
 }
 
-function CommentModal({ title, required = true, onConfirm, onClose, extraFields }) {
+function CommentModal({ title, required = true, onConfirm, onClose, extraFields, apiError, apiLoading }) {
     const [comment, setComment] = useState('');
     const [fields, setFields]   = useState({});
-    const [error, setError]     = useState('');
+    const [localError, setLocalError] = useState('');
 
     const handle = () => {
         if (required && comment.trim().length < 10) {
-            setError('Comment must be at least 10 characters');
+            setLocalError('Comment must be at least 10 characters');
             return;
         }
         onConfirm({ comment, ...fields });
     };
+
+    const displayError = localError || apiError;
 
     return (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
@@ -83,26 +85,48 @@ function CommentModal({ title, required = true, onConfirm, onClose, extraFields 
                     {/* Extra fields (e.g. designer/checker selects) */}
                     {extraFields}
 
+                    {displayError && (
+                        <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 mb-5 text-sm font-medium flex items-center gap-2 animate-in fade-in duration-200">
+                            <AlertTriangle size={16} className="shrink-0" />
+                            <span>{displayError}</span>
+                        </div>
+                    )}
+
                     <div className="mb-6">
                         <label className="block text-sm font-bold text-slate-700 mb-2">
                             Comment {required && <span className="text-red-500">*</span>}
                         </label>
                         <textarea
                             value={comment}
-                            onChange={e => { setComment(e.target.value); setError(''); }}
+                            disabled={apiLoading}
+                            onChange={e => { setComment(e.target.value); setLocalError(''); }}
                             rows={4}
-                            className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-y"
+                            className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-y disabled:bg-slate-50"
                             placeholder="Enter your comment..."
                         />
-                        {error && <div className="text-red-500 text-xs font-semibold mt-2">{error}</div>}
                     </div>
 
                     <div className="flex gap-3 justify-end pt-2">
-                        <button onClick={onClose} className="px-5 py-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm transition-colors">
+                        <button 
+                            onClick={onClose} 
+                            disabled={apiLoading} 
+                            className="px-5 py-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm transition-colors disabled:opacity-50"
+                        >
                             Cancel
                         </button>
-                        <button onClick={handle} className="px-5 py-2.5 rounded-lg bg-[#0F4C81] hover:bg-[#0c3e6a] text-white font-bold text-sm shadow-sm transition-colors">
-                            Confirm Action
+                        <button 
+                            onClick={handle} 
+                            disabled={apiLoading} 
+                            className="px-5 py-2.5 rounded-lg bg-[#0F4C81] hover:bg-[#0c3e6a] text-white font-bold text-sm shadow-sm transition-colors disabled:opacity-70 flex items-center gap-2"
+                        >
+                            {apiLoading ? (
+                                <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    <span>Processing...</span>
+                                </>
+                            ) : (
+                                'Confirm Action'
+                            )}
                         </button>
                     </div>
                 </div>
@@ -439,6 +463,22 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
     const [designFiles, setDesignFiles] = useState([]);
     const [isScanning, setIsScanning] = useState(false);
 
+    React.useEffect(() => {
+        setError('');
+    }, [modal]);
+
+    const renderCommentModal = (title, required, onConfirm, extraFields = null) => (
+        <CommentModal
+            title={title}
+            required={required}
+            onClose={() => setModal(null)}
+            onConfirm={onConfirm}
+            extraFields={extraFields}
+            apiError={error}
+            apiLoading={loading}
+        />
+    );
+
     const exec = async (fn, toastKey) => {
         setLoading(true);
         setError('');
@@ -592,19 +632,28 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
 
     if (!panels.length) return null;
 
-    const designerEmps = employees.filter(e => /^\s*designer\s*$/i.test(e.role || ''));
+    const designerEmps = employees.filter(e => 
+        /^\s*designer\s*$/i.test(e.role || '') || 
+        /^\s*designer\s*$/i.test(e.designation || '')
+    );
     const designerOptions = (designerEmps.length > 0 ? designerEmps : employees).map(e => (
-        <option key={e._id} value={e._id}>{e.employeeName} ({e.employeeId} · {e.departmentName || e.role})</option>
+        <option key={e._id} value={e._id}>{e.employeeName} ({e.employeeId} · {e.departmentName || e.designation || e.role})</option>
     ));
 
-    const checkerEmps = employees.filter(e => /^\s*checker\s*$/i.test(e.role || ''));
+    const checkerEmps = employees.filter(e => 
+        /^\s*checker\s*$/i.test(e.role || '') || 
+        /^\s*checker\s*$/i.test(e.designation || '')
+    );
     const checkerOptions = (checkerEmps.length > 0 ? checkerEmps : employees).map(e => (
-        <option key={e._id} value={e._id}>{e.employeeName} ({e.employeeId} · {e.departmentName || e.role})</option>
+        <option key={e._id} value={e._id}>{e.employeeName} ({e.employeeId} · {e.departmentName || e.designation || e.role})</option>
     ));
 
-    const engineerEmps = employees.filter(e => /^\s*ped engineer\s*$/i.test(e.role || ''));
+    const engineerEmps = employees.filter(e => 
+        /^\s*ped engineer\s*$/i.test(e.role || '') || 
+        /^\s*ped engineer\s*$/i.test(e.designation || '')
+    );
     const engineerOptions = (engineerEmps.length > 0 ? engineerEmps : employees).map(e => (
-        <option key={e._id} value={e._id}>{e.employeeName} ({e.employeeId} · {e.departmentName || e.role})</option>
+        <option key={e._id} value={e._id}>{e.employeeName} ({e.employeeId} · {e.departmentName || e.designation || e.role})</option>
     ));
 
     return (
@@ -637,122 +686,120 @@ export default function WorkflowActions({ requestId, workflowState, employees = 
             </div>
 
             {/* ── Modals ── */}
-            {modal === 'l1approve' && (
-                <CommentModal
-                    title="L1 Approval — Assign PED Engineer"
-                    required={false}
-                    extraFields={
-                        <div className="flex flex-col gap-4 mb-6">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">
-                                    Assign PED Engineer <span className="text-red-500">*</span>
-                                </label>
-                                <select value={engineerId} onChange={e => setEngineerId(e.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-slate-50">
-                                    <option value="">Select PED Engineer</option>
-                                    {engineerOptions}
-                                </select>
-                            </div>
-                        </div>
-                    }
-                    onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => {
-                        if (!engineerId) throw new Error('A PED Engineer must be assigned for L1 Approval');
-                        const result = await l1Approve(requestId, { comment, assignEngineerId: engineerId });
-                        setModal(null);
-                        return result;
-                    }, 'l1approve')}
-                />
+            {modal === 'l1approve' && renderCommentModal(
+                "L1 Approval — Assign PED Engineer",
+                false,
+                ({ comment }) => exec(async () => {
+                    if (!engineerId) throw new Error('A PED Engineer must be assigned for L1 Approval');
+                    const result = await l1Approve(requestId, { comment, assignEngineerId: engineerId });
+                    setModal(null);
+                    return result;
+                }, 'l1approve'),
+                <div className="flex flex-col gap-4 mb-6">
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                            Assign PED Engineer <span className="text-red-500">*</span>
+                        </label>
+                        <select value={engineerId} onChange={e => setEngineerId(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-slate-50">
+                            <option value="">Select PED Engineer</option>
+                            {engineerOptions}
+                        </select>
+                    </div>
+                </div>
             )}
 
-            {modal === 'assigndesignteam' && (
-                <CommentModal
-                    title="Assign Design Team"
-                    required={false}
-                    extraFields={
-                        <div className="flex flex-col gap-4 mb-6">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">
-                                    Assign Designer <span className="text-red-500">*</span>
-                                </label>
-                                <select value={designerId} onChange={e => setDesignerId(e.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-slate-50">
-                                    <option value="">Select Designer</option>
-                                    {designerOptions}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">
-                                    Assign Checker <span className="text-red-500">*</span>
-                                </label>
-                                <select value={checkerId} onChange={e => setCheckerId(e.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-slate-50">
-                                    <option value="">Select Checker</option>
-                                    {checkerOptions}
-                                </select>
-                            </div>
-                        </div>
-                    }
-                    onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => {
-                        if (!designerId || !checkerId) throw new Error('Designer and Checker assignments are required');
-                        const result = await assignDesignTeam(requestId, { comment, assignDesignerId: designerId, assignCheckerId: checkerId });
-                        setModal(null);
-                        return result;
-                    }, 'assigndesignteam')}
-                />
+            {modal === 'assigndesignteam' && renderCommentModal(
+                "Assign Design Team",
+                false,
+                ({ comment }) => exec(async () => {
+                    if (!designerId || !checkerId) throw new Error('Designer and Checker assignments are required');
+                    const result = await assignDesignTeam(requestId, { comment, assignDesignerId: designerId, assignCheckerId: checkerId });
+                    setModal(null);
+                    return result;
+                }, 'assigndesignteam'),
+                <div className="flex flex-col gap-4 mb-6">
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                            Assign Designer <span className="text-red-500">*</span>
+                        </label>
+                        <select value={designerId} onChange={e => setDesignerId(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-slate-50">
+                            <option value="">Select Designer</option>
+                            {designerOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                            Assign Checker <span className="text-red-500">*</span>
+                        </label>
+                        <select value={checkerId} onChange={e => setCheckerId(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-slate-50">
+                            <option value="">Select Checker</option>
+                            {checkerOptions}
+                        </select>
+                    </div>
+                </div>
             )}
 
-            {modal === 'l1reject' && (
-                <CommentModal title="Reject Request" required={true} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => { const r = await l1Reject(requestId, { comment }); setModal(null); return r; }, 'l1reject')} />
+            {modal === 'l1reject' && renderCommentModal(
+                "Reject Request",
+                true,
+                ({ comment }) => exec(async () => { const r = await l1Reject(requestId, { comment }); setModal(null); return r; }, 'l1reject')
             )}
 
-            {modal === 'submitdesign' && (
-                <CommentModal title="Submit Design Documents" required={false} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => {
-                        const fd = new FormData();
-                        fd.append('comment', comment);
-                        designFiles.forEach(f => fd.append('designDocuments', f));
-                        const result = await submitDesign(requestId, fd);
-                        setModal(null); setDesignFiles([]);
-                        return result;
-                    }, 'submitdesign')} />
+            {modal === 'submitdesign' && renderCommentModal(
+                "Submit Design Documents",
+                false,
+                ({ comment }) => exec(async () => {
+                    const fd = new FormData();
+                    fd.append('comment', comment);
+                    designFiles.forEach(f => fd.append('designDocuments', f));
+                    const result = await submitDesign(requestId, fd);
+                    setModal(null); setDesignFiles([]);
+                    return result;
+                }, 'submitdesign')
             )}
 
-            {modal === 'designerreject' && (
-                <CommentModal title="Revert Request" required={true} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => { const r = await designerReject(requestId, { comment }); setModal(null); return r; }, 'designerreject')} />
+            {modal === 'designerreject' && renderCommentModal(
+                "Revert Request",
+                true,
+                ({ comment }) => exec(async () => { const r = await designerReject(requestId, { comment }); setModal(null); return r; }, 'designerreject')
             )}
 
-            {modal === 'checkerapprove' && (
-                <CommentModal title="Verify &amp; Approve Design" required={false} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => { const r = await checkDesign(requestId, { action: 'approve', comment }); setModal(null); return r; }, 'checkerapprove')} />
+            {modal === 'checkerapprove' && renderCommentModal(
+                "Verify & Approve Design",
+                false,
+                ({ comment }) => exec(async () => { const r = await checkDesign(requestId, { action: 'approve', comment }); setModal(null); return r; }, 'checkerapprove')
             )}
 
-            {modal === 'checkerreject' && (
-                <CommentModal title="Reject Design & Request Revision" required={true} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => { const r = await checkDesign(requestId, { action: 'reject', comment }); setModal(null); return r; }, 'checkerreject')} />
+            {modal === 'checkerreject' && renderCommentModal(
+                "Reject Design & Request Revision",
+                true,
+                ({ comment }) => exec(async () => { const r = await checkDesign(requestId, { action: 'reject', comment }); setModal(null); return r; }, 'checkerreject')
             )}
 
-            {modal === 'finalapprove' && (
-                <CommentModal title="Final Authorization" required={false} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => { const r = await finalApprove(requestId, { action: 'approve', comment }); setModal(null); return r; }, 'finalapprove')} />
+            {modal === 'finalapprove' && renderCommentModal(
+                "Final Authorization",
+                false,
+                ({ comment }) => exec(async () => { const r = await finalApprove(requestId, { action: 'approve', comment }); setModal(null); return r; }, 'finalapprove')
             )}
 
-            {modal === 'finalreject' && (
-                <CommentModal title="Reject Final Authorization" required={true} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => { const r = await finalApprove(requestId, { action: 'reject', comment }); setModal(null); return r; }, 'finalreject')} />
+            {modal === 'finalreject' && renderCommentModal(
+                "Reject Final Authorization",
+                true,
+                ({ comment }) => exec(async () => { const r = await finalApprove(requestId, { action: 'reject', comment }); setModal(null); return r; }, 'finalreject')
             )}
 
-            {modal?.startsWith('advance_') && (
-                <CommentModal title={`Advance to ${modal.replace('advance_', '').replace('_', ' ')}`} required={false} onClose={() => setModal(null)}
-                    onConfirm={({ comment }) => exec(async () => {
-                        const stage = modal.replace('advance_', '');
-                        const result = await advanceProduction(requestId, { stage, comment });
-                        setModal(null);
-                        return result;
-                    }, `advance_${modal.replace('advance_', '')}`)} />
+            {modal?.startsWith('advance_') && renderCommentModal(
+                `Advance to ${modal.replace('advance_', '').replace('_', ' ')}`,
+                false,
+                ({ comment }) => exec(async () => {
+                    const stage = modal.replace('advance_', '');
+                    const result = await advanceProduction(requestId, { stage, comment });
+                    setModal(null);
+                    return result;
+                }, `advance_${modal.replace('advance_', '')}`)
             )}
         </div>
     );

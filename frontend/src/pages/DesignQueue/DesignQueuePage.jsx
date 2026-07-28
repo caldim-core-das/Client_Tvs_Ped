@@ -9,6 +9,12 @@ const STATE_COLORS = {
     L1_APPROVED:         { bg: '#eff6ff', color: '#2563eb', label: 'Awaiting Design Team Assignment' },
     DESIGN_IN_PROGRESS:  { bg: '#f5f3ff', color: '#7c3aed', label: 'In Progress' },
     DESIGN_REJECTED:     { bg: '#fef2f2', color: '#dc2626', label: 'Revision Required' },
+    DESIGN_SUBMITTED:    { bg: '#ecfeff', color: '#0891b2', label: 'Design Submitted (Under Review)' },
+    DESIGN_APPROVED:     { bg: '#f0fdf4', color: '#16a34a', label: 'Approved by Checker' },
+    FINAL_APPROVED:      { bg: '#f0fdf4', color: '#16a34a', label: 'Final Approved' },
+    IN_PRODUCTION:       { bg: '#fffbeb', color: '#d97706', label: 'In Production' },
+    IMPLEMENTATION:      { bg: '#f5f3ff', color: '#7c3aed', label: 'Implementation' },
+    COMPLETED:           { bg: '#f0fdf4', color: '#16a34a', label: 'Completed' },
 };
 
 export default function DesignQueuePage() {
@@ -18,10 +24,12 @@ export default function DesignQueuePage() {
 
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
 
-    const loadQueue = async () => {
+    const loadQueue = async (tab) => {
+        setLoading(true);
         try {
-            const r = await getWorkflowQueue('design');
+            const r = await getWorkflowQueue('design', { history: tab === 'history' });
             setItems(r.data.data || []);
         } catch (e) {
             console.error(e);
@@ -32,8 +40,8 @@ export default function DesignQueuePage() {
     };
 
     useEffect(() => {
-        loadQueue();
-    }, []);
+        loadQueue(activeTab);
+    }, [activeTab]);
 
     return (
         <div style={{ padding: '24px 20px', fontFamily: "'Inter','Segoe UI',sans-serif", width: '100%' }}>
@@ -46,6 +54,52 @@ export default function DesignQueuePage() {
                 </p>
             </div>
 
+            {/* ── Tabs Selector ── */}
+            <div style={{ display: 'flex', gap: 10, marginBottom: 24, borderBottom: '1px solid #f1f5f9', paddingBottom: 12 }}>
+                <button
+                    onClick={() => setActiveTab('pending')}
+                    style={{
+                        padding: '10px 18px',
+                        border: 'none',
+                        background: activeTab === 'pending' ? 'rgba(15,76,129,0.08)' : 'transparent',
+                        color: activeTab === 'pending' ? '#0F4C81' : '#64748b',
+                        fontWeight: 700,
+                        fontSize: 14,
+                        borderRadius: 10,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        boxShadow: activeTab === 'pending' ? 'inset 0 0 0 1px rgba(15,76,129,0.15)' : 'none'
+                    }}
+                >
+                    📥 Active Tasks
+                    {activeTab === 'pending' && <span style={{ fontSize: 11, background: '#0F4C81', color: '#fff', padding: '1px 6px', borderRadius: 20 }}>{items.length}</span>}
+                </button>
+                <button
+                    onClick={() => setActiveTab('history')}
+                    style={{
+                        padding: '10px 18px',
+                        border: 'none',
+                        background: activeTab === 'history' ? 'rgba(15,76,129,0.08)' : 'transparent',
+                        color: activeTab === 'history' ? '#0F4C81' : '#64748b',
+                        fontWeight: 700,
+                        fontSize: 14,
+                        borderRadius: 10,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        boxShadow: activeTab === 'history' ? 'inset 0 0 0 1px rgba(15,76,129,0.15)' : 'none'
+                    }}
+                >
+                    📜 History
+                    {activeTab === 'history' && <span style={{ fontSize: 11, background: '#0F4C81', color: '#fff', padding: '1px 6px', borderRadius: 20 }}>{items.length}</span>}
+                </button>
+            </div>
+
             {loading ? (
                 <div style={{ textAlign: 'center', color: '#94a3b8', padding: 40 }}>Loading...</div>
             ) : items.length === 0 ? (
@@ -54,8 +108,12 @@ export default function DesignQueuePage() {
                     background: '#f8fafc', borderRadius: 12,
                     border: '1px dashed #e2e8f0', color: '#94a3b8'
                 }}>
-                    <div style={{ fontSize: 36, marginBottom: 8 }}>🎉</div>
-                    No pending design tasks. All caught up!
+                    <div style={{ fontSize: 36, marginBottom: 8 }}>
+                        {activeTab === 'history' ? '📜' : '🎉'}
+                    </div>
+                    {activeTab === 'history' 
+                        ? 'No completed or submitted design tasks yet.' 
+                        : 'No pending design tasks. All caught up!'}
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
