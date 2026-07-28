@@ -1,22 +1,14 @@
-const express  = require('express');
-const router   = express.Router();
-const { protect } = require('../middleware/authMiddleware');
-const { requireWorkflowRole } = require('../middleware/workflowAuthMiddleware');
+const express = require('express');
+const router = express.Router();
+const { protect, checkPermission } = require('../middleware/authMiddleware');
 
 const {
     getWorkflowState,
     getWorkflowQueue,
-    l1Approve,
-    l1Reject,
-    assignDesignTeam,
-    submitDesign,
-    checkDesign,
-    finalApprove,
-    advanceProduction,
+    submitWorkflowAction,
     getLeadTimeEstimate,
-    designerReject,
     getNotificationLogs
-} = require('../controllers/workflowController');
+} = require('../controllers/mhRequestWorkflowController');
 
 // All routes require JWT auth
 router.use(protect);
@@ -30,77 +22,18 @@ router.get('/:requestId/state', getWorkflowState);
 router.get('/queue/:queueType', getWorkflowQueue);
 
 // GET /api/workflow/notifications — Admin only notification log
-router.get('/notifications', requireWorkflowRole('Admin', 'System Admin'), getNotificationLogs);
+router.get('/notifications', checkPermission('workflowStudio'), getNotificationLogs);
 
 // GET /api/workflow/lead-time/estimate/:requestId
 router.get('/lead-time/estimate/:requestId', getLeadTimeEstimate);
 
-// ─── L1 Approval Stage ───────────────────────────────────────────────────────
-
-// POST /api/workflow/:requestId/l1-approve
-router.post(
-    '/:requestId/l1-approve',
-    requireWorkflowRole('L1 Approver', 'Admin'),
-    l1Approve
-);
-
-// POST /api/workflow/:requestId/l1-reject
-router.post(
-    '/:requestId/l1-reject',
-    requireWorkflowRole('L1 Approver', 'Admin'),
-    l1Reject
-);
-
-// ─── PED Engineer Assignment Stage ────────────────────────────────────────────
-
-// POST /api/workflow/:requestId/assign-design-team
-router.post(
-    '/:requestId/assign-design-team',
-    requireWorkflowRole('PED Engineer', 'Admin'),
-    assignDesignTeam
-);
-
-// ─── Design Stage ─────────────────────────────────────────────────────────────
-
-// POST /api/workflow/:requestId/submit-design  (multipart/form-data)
-router.post(
-    '/:requestId/submit-design',
-    requireWorkflowRole('Designer', 'PED Engineer', 'Admin'),
-    submitDesign
-);
-
-// POST /api/workflow/:requestId/designer-reject
-router.post(
-    '/:requestId/designer-reject',
-    requireWorkflowRole('Designer', 'PED Engineer', 'Admin'),
-    designerReject
-);
-
-// ─── Checker Stage ────────────────────────────────────────────────────────────
-
-// POST /api/workflow/:requestId/check-design
-router.post(
-    '/:requestId/check-design',
-    requireWorkflowRole('Checker', 'Admin'),
-    checkDesign
-);
-
-// ─── Final Approval Stage ─────────────────────────────────────────────────────
-
-// POST /api/workflow/:requestId/final-approve
-router.post(
-    '/:requestId/final-approve',
-    requireWorkflowRole('Final Approver', 'Admin'),
-    finalApprove
-);
-
-// ─── Production / Implementation Stage ───────────────────────────────────────
-
-// PATCH /api/workflow/:requestId/advance-production
-router.patch(
-    '/:requestId/advance-production',
-    requireWorkflowRole('PED Engineer', 'Admin'),
-    advanceProduction
-);
+// ─── The single generic transition endpoint ──────────────────────────────────
+// Every stage of the MH Request workflow — L1 approval/rejection, PED Engineer
+// assignment, design submission/rejection, checker validation, final approval,
+// production/implementation/completion — flows through this one route. What's
+// allowed, by whom, and what happens next is entirely defined by the published
+// WorkflowDefinition graph (see backend/services/workflowEngine.js) and can be
+// changed in the Workflow Studio without touching this file.
+router.post('/:requestId/workflow-action', submitWorkflowAction);
 
 module.exports = router;

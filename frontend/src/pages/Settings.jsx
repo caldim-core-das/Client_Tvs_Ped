@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Calendar, FileText, Users, Save, Check, Search, Shield, Palette, Type, Layout as LayoutIcon, Sliders } from 'lucide-react';
+import { Calendar, FileText, Users, Save, Check, Search, Shield, Palette, Type, Layout as LayoutIcon, Sliders, UploadCloud, Target, Activity, Database } from 'lucide-react';
 import { message, Select, Tag, Spin, Tooltip } from 'antd';
 import { COLOR_THEMES, FONT_OPTIONS, LAYOUT_OPTIONS } from '../components/Sidebar';
 import jsPDF from 'jspdf';
@@ -20,6 +20,7 @@ const ROLE_OPTIONS = [
 ];
 
 const Settings = () => {
+    const [activeTab, setActiveTab] = useState('Report Settings');
     const [loading, setLoading] = useState(true);
     const [employees, setEmployees] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -313,15 +314,49 @@ const Settings = () => {
         'Progress Report of Rejected'
     ];
 
+    const tabs = [
+        { id: 'Report Settings', icon: FileText },
+        { id: 'User Management', icon: Users },
+        { id: 'Bulk Uploads', icon: UploadCloud },
+        { id: 'Interface Customisation', icon: Sliders },
+        { id: 'Audit & Compliance', icon: Shield },
+        { id: 'KPI Targets & Thresholds', icon: Target },
+        { id: 'System Diagnostics & Logs', icon: Activity }
+    ];
+
     return (
-        <div className="p-6">
-            {/* Header */}
-            <div className="mb-6 flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Report Settings</h1>
-                    <p className="text-gray-600">Configure automated report generation and delivery</p>
+        <div className="flex h-full bg-gray-50/50 min-h-[calc(100vh-64px)]">
+            {/* Sidebar */}
+            <div className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0">
+                <div className="p-6 pb-2">
+                    <h2 className="text-xl font-bold text-gray-800">Settings</h2>
+                    <p className="text-xs text-gray-500 mt-1">Manage system configurations</p>
                 </div>
-                <div className="flex gap-4">
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+                    {tabs.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-left ${activeTab === tab.id ? 'bg-red-50 text-tvs-primary' : 'text-gray-600 hover:bg-gray-50'}`}
+                        >
+                            <tab.icon size={18} className={activeTab === tab.id ? 'text-tvs-primary' : 'text-gray-400'} />
+                            {tab.id}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Main Content Area */}
+            <div className="flex-1 p-8 overflow-y-auto h-[calc(100vh-64px)]">
+                {/* ─── Report Settings ───────────────────────────────────────────── */}
+                {activeTab === 'Report Settings' && (
+                    <div className="animate-in fade-in duration-300">
+                        <div className="mb-6 flex justify-between items-center">
+                            <div>
+                                <h1 className="text-2xl font-bold text-gray-800">Report Settings</h1>
+                                <p className="text-gray-600">Configure automated report generation and delivery</p>
+                            </div>
+                            <div className="flex gap-4">
                     <button
                         onClick={handlePreview}
                         style={{ color: '#fff' }}
@@ -459,9 +494,12 @@ const Settings = () => {
                     <span>{loading ? 'Saving...' : 'Save Changes'}</span>
                 </button>
             </div>
+                    </div>
+                )}
 
-            {/* ─── User Management Section ─────────────────────────────────────── */}
-            <div className="mt-10">
+                {/* ─── User Management Section ─────────────────────────────────────── */}
+                {activeTab === 'User Management' && (
+                    <div className="animate-in fade-in duration-300">
                 <div className="mb-4 flex items-center gap-3">
                     <Shield className="w-6 h-6 text-tvs-primary" />
                     <div>
@@ -562,10 +600,28 @@ const Settings = () => {
                         </div>
                     )}
                 </div>
-            </div>
+                    </div>
+                )}
 
-            {/* ─── UI Customization Section ─────────────────────────────────────── */}
-            <div className="mt-10">
+                {/* ─── Bulk Uploads Section (Placeholder) ────────────────────────── */}
+                {activeTab === 'Bulk Uploads' && (
+                    <div className="animate-in fade-in duration-300">
+                        <div className="mb-4 flex items-center gap-3">
+                            <UploadCloud className="w-6 h-6 text-tvs-primary" />
+                            <div>
+                                <h1 className="text-2xl font-bold text-gray-800">Bulk Uploads</h1>
+                                <p className="text-gray-600 text-sm">Upload bulk configuration via Excel</p>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center justify-center h-48 text-gray-400">
+                            Bulk uploads functionality coming soon.
+                        </div>
+                    </div>
+                )}
+
+                {/* ─── UI Customization Section ─────────────────────────────────────── */}
+                {activeTab === 'Interface Customisation' && (
+                    <div className="animate-in fade-in duration-300">
                 <div className="mb-4 flex items-center gap-3">
                     <Sliders className="w-6 h-6 text-tvs-primary" />
                     <div>
@@ -640,10 +696,12 @@ const Settings = () => {
                         </div>
                     </div>
                 </div>
-            </div>
+                    </div>
+                )}
 
-            {/* ─── Audit & Compliance Section ─────────────────────────────────────── */}
-            <div className="mt-10">
+                {/* ─── Audit & Compliance Section ─────────────────────────────────────── */}
+                {activeTab === 'Audit & Compliance' && (
+                    <div className="animate-in fade-in duration-300">
                 <div className="mb-4 flex items-center gap-3">
                     <Shield className="w-6 h-6 text-red-500" />
                     <div>
@@ -670,13 +728,23 @@ const Settings = () => {
                         Export Excel Report
                     </button>
                 </div>
+                    </div>
+                )}
+
+                {/* ─── KPI Settings Section ─────────────────────────────────────── */}
+                {activeTab === 'KPI Targets & Thresholds' && (
+                    <div className="animate-in fade-in duration-300">
+                        <KPISettingsSection />
+                    </div>
+                )}
+
+                {/* ─── Notification Log Section (Admin Only) ────────────────────── */}
+                {activeTab === 'System Diagnostics & Logs' && (
+                    <div className="animate-in fade-in duration-300">
+                        <NotificationLogSection />
+                    </div>
+                )}
             </div>
-
-            {/* ─── KPI Settings Section ─────────────────────────────────────── */}
-            <KPISettingsSection />
-
-            {/* ─── Notification Log Section (Admin Only) ────────────────────── */}
-            <NotificationLogSection />
         </div>
     );
 };

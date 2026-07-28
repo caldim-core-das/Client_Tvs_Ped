@@ -9,7 +9,7 @@ import {
     ClipboardSignature, CheckCircle2, XCircle, Search, 
     Palette, PenTool, ShieldCheck, ShieldAlert, 
     Settings, Rocket, PartyPopper, RefreshCw, AlertCircle, UserCircle,
-    MessageSquare, RotateCcw, Wrench
+    MessageSquare, RotateCcw, Wrench, Activity
 } from 'lucide-react';
 
 
@@ -136,7 +136,16 @@ export default function StageHistory({ stageHistory = [] }) {
 
             <div className="space-y-6">
                 {sorted.map((entry, idx) => {
-                    const style = ACTION_MAP[entry.action] || ACTION_MAP.MIGRATED_FROM_LEGACY;
+                    let style = ACTION_MAP[entry.action];
+                    if (!style) {
+                        style = {
+                            icon: Activity,
+                            color: 'text-slate-600',
+                            bg: 'bg-slate-50',
+                            border: 'border-slate-200',
+                            label: entry.action || 'Workflow Activity'
+                        };
+                    }
                     const Icon  = style.icon;
                     const isLatest = idx === 0;
                     const summary = getActivitySummary(entry);

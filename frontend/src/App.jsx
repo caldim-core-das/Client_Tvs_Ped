@@ -42,6 +42,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 // ── Enterprise Workflow v2 Pages ────────────────────────────────────────────────
 import WorkflowDetailPage    from './pages/WorkflowDetail/WorkflowDetailPage';
+import WorkflowStudioPage    from './pages/WorkflowStudio/WorkflowStudioPage';
 import DesignQueuePage        from './pages/DesignQueue/DesignQueuePage';
 import CheckerQueuePage       from './pages/CheckerQueue/CheckerQueuePage';
 import FinalApprovalQueuePage from './pages/FinalApprovalQueue/FinalApprovalQueuePage';
@@ -229,6 +230,12 @@ function App() {
             <Route path="settings" element={
               <ProtectedRoute permission="settings">
                 <Settings />
+              </ProtectedRoute>
+            } />
+
+            <Route path="workflow-studio" element={
+              <ProtectedRoute permission="workflowStudio">
+                <WorkflowStudioPage />
               </ProtectedRoute>
             } />
 

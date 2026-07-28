@@ -37,7 +37,7 @@ const upload = multer({
 });
 
 // PUBLIC: approver clicks "Assign" link from email (no auth required)
-router.get('/:id/assign-link/:engineerId', mhRequestController.assignEngineerFromLink);
+router.all('/:id/assign-link/:engineerId', mhRequestController.assignEngineerFromLink);
 
 // Apply protection to all routes
 router.use(protect);

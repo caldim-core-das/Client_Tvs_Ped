@@ -10,22 +10,24 @@ import { Check, X, ClipboardSignature, Search, ShieldCheck, Settings, Rocket, Us
 const STAGES = [
     { id: 1, key: 'SUBMITTED',          label: 'Submitted',       icon: ClipboardSignature },
     { id: 2, key: 'L1_APPROVAL',        label: 'L1 Approval',     icon: Check },
-    { id: 3, key: 'DESIGN',             label: 'Design',          icon: Settings },
-    { id: 4, key: 'CHECKER_REVIEW',     label: 'Checker Review',  icon: Search },
-    { id: 5, key: 'FINAL_APPROVAL',     label: 'Final Approval',  icon: ShieldCheck },
-    { id: 6, key: 'PRODUCTION',         label: 'Production',      icon: Settings },
-    { id: 7, key: 'IMPLEMENTATION',     label: 'Implementation',  icon: Rocket },
+    { id: 3, key: 'PED_ASSIGNMENT',     label: 'PED Assignment',  icon: UserCircle },
+    { id: 4, key: 'DESIGN',             label: 'Design',          icon: Settings },
+    { id: 5, key: 'CHECKER_REVIEW',     label: 'Checker Review',  icon: Search },
+    { id: 6, key: 'FINAL_APPROVAL',     label: 'Final Approval',  icon: ShieldCheck },
+    { id: 7, key: 'PRODUCTION',         label: 'Production',      icon: Settings },
+    { id: 8, key: 'IMPLEMENTATION',     label: 'Implementation',  icon: Rocket },
 ];
 
 const STATE_TO_STAGE = {
-    SUBMITTED:           1,
-    L1_APPROVED:         2, L1_REJECTED: 2,
-    DESIGN_IN_PROGRESS:  3, DESIGN_SUBMITTED: 3, DESIGN_REJECTED: 3, REVERTED: 3,
-    DESIGN_APPROVED:     4,
-    FINAL_APPROVED:      5, FINAL_REJECTED: 5,
-    IN_PRODUCTION:       6,
-    IMPLEMENTATION:      7,
-    COMPLETED:           7,
+    SUBMITTED:           1, // Wait for L1 (Stage 1 is completed implicitly, waiting for Stage 2) Wait, if it's 1, then stageStatus makes Stage 1 'active'. 
+    L1_APPROVED:         3, L1_REJECTED: 2, // L1 Approved means waiting for PED, so Stage 3 active.
+    DESIGN_IN_PROGRESS:  4, DESIGN_REJECTED: 4, REVERTED: 4, // PED assigned means waiting for Design, Stage 4 active.
+    DESIGN_SUBMITTED:    5, // Design submitted means waiting for Checker, Stage 5 active.
+    DESIGN_APPROVED:     6, // Checker approved means waiting for Final, Stage 6 active.
+    FINAL_APPROVED:      7, FINAL_REJECTED: 6, // Final approved means waiting for Production, Stage 7 active.
+    IN_PRODUCTION:       8, // Production started means waiting for Implementation, Stage 8 active.
+    IMPLEMENTATION:      8, // Same
+    COMPLETED:           9, // All done
 };
 
 const REJECTED_STATES = ['L1_REJECTED', 'DESIGN_REJECTED', 'FINAL_REJECTED', 'REVERTED'];
@@ -39,8 +41,8 @@ function stageStatus(stageId, currentStage, workflowState) {
 
 const statusClasses = {
     completed: {
-        circle: 'bg-emerald-50 border-emerald-500 text-emerald-600',
-        icon: 'text-emerald-600',
+        circle: 'bg-emerald-500 border-emerald-500 text-white',
+        icon: 'text-white',
         text: 'text-emerald-700',
         line: 'bg-emerald-500'
     },
@@ -65,7 +67,7 @@ const statusClasses = {
 };
 
 export default function WorkflowTimeline({ workflowState, currentStage, stageFlags, history = [] }) {
-    const resolvedStage = currentStage || STATE_TO_STAGE[workflowState] || 1;
+    const resolvedStage = STATE_TO_STAGE[workflowState] || currentStage || 1;
 
     // Helper to find the latest history entry for a specific stage
     const getStageHistory = (stageId) => {
@@ -73,11 +75,12 @@ export default function WorkflowTimeline({ workflowState, currentStage, stageFla
         let stateMatches = [];
         if (stageId === 1) stateMatches = ['SUBMITTED'];
         if (stageId === 2) stateMatches = ['L1_APPROVED', 'L1_REJECTED'];
-        if (stageId === 3) stateMatches = ['DESIGN_IN_PROGRESS', 'DESIGN_SUBMITTED', 'DESIGN_REJECTED', 'REVERTED'];
-        if (stageId === 4) stateMatches = ['DESIGN_APPROVED'];
-        if (stageId === 5) stateMatches = ['FINAL_APPROVED', 'FINAL_REJECTED'];
-        if (stageId === 6) stateMatches = ['IN_PRODUCTION'];
-        if (stageId === 7) stateMatches = ['IMPLEMENTATION', 'COMPLETED'];
+        if (stageId === 3) stateMatches = ['DESIGN_IN_PROGRESS'];
+        if (stageId === 4) stateMatches = ['DESIGN_SUBMITTED', 'DESIGN_REJECTED', 'REVERTED'];
+        if (stageId === 5) stateMatches = ['DESIGN_APPROVED'];
+        if (stageId === 6) stateMatches = ['FINAL_APPROVED', 'FINAL_REJECTED'];
+        if (stageId === 7) stateMatches = ['IN_PRODUCTION'];
+        if (stageId === 8) stateMatches = ['IMPLEMENTATION', 'COMPLETED'];
 
         return history.slice().reverse().find(h => stateMatches.includes(h.workflowState));
     };
@@ -87,11 +90,12 @@ export default function WorkflowTimeline({ workflowState, currentStage, stageFla
         const map = {
             1: null,
             2: stageFlags.l1ApprovedAt,
-            3: stageFlags.designAssignedAt,
-            4: stageFlags.designApprovedAt,
-            5: stageFlags.finalApprovedAt,
-            6: stageFlags.productionStartAt,
-            7: stageFlags.implementedAt,
+            3: stageFlags.designAssignedAt, // Actually, maybe ped assigned at? we can leave it
+            4: null, // design submitted at isn't in flags
+            5: stageFlags.designApprovedAt,
+            6: stageFlags.finalApprovedAt,
+            7: stageFlags.productionStartAt,
+            8: stageFlags.implementedAt,
         };
         const date = map[stageId];
         return date ? new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null;

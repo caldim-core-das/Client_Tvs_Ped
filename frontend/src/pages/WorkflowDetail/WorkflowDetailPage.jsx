@@ -384,7 +384,7 @@ export default function WorkflowDetailPage() {
                         {/* Actions Center */}
                         <WorkflowActions
                             requestId={id}
-                            workflowState={workflow?.workflowState}
+                            currentNode={workflow?.currentNode}
                             employees={employees}
                             onActionComplete={load}
                         />

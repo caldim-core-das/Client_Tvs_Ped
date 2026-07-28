@@ -8,6 +8,7 @@ const { sendRequesterStatusEmail } = require('./emailController');
 const { estimateLeadTime } = require('../services/leadTimeService');
 const { sendWorkflowNotification } = require('../services/workflowNotificationService');
 const { computeLeadTimeStatus } = require('../utils/leadTimeStatus');
+const { initializeWorkflowPosition, submitAction, WorkflowEngineError } = require('../services/workflowEngine');
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -256,10 +257,19 @@ const createMHRequest = async (req, res) => {
                     metadata:  { requestedFor: userName, department: departmentName, plant: plantLocation }
                 };
 
+                // Place the request onto the active WorkflowDefinition graph (position
+                // only — notifyL1OnSubmission below already covers the initial
+                // notification/approver-field side effects the TRIGGER's chain would
+                // otherwise handle generically).
+                const graphPosition = {};
+                await initializeWorkflowPosition(graphPosition);
+
                 await MHRequest.findByIdAndUpdate(savedRequest._id, {
                     workflowState:   'SUBMITTED',
                     workflowVersion: 2,
                     currentStage:    1,
+                    currentNodeId:   graphPosition.currentNodeId,
+                    workflowDefinitionVersion: graphPosition.workflowDefinitionVersion,
                     $push: { stageHistory: historyEntry }
                 });
 
@@ -752,6 +762,19 @@ a{background:#B31818;color:#fff;padding:12px 28px;border-radius:8px;text-decorat
 <p><strong>${engName}</strong> has been assigned to request <strong>${reqId}</strong>. They have been notified via email.</p>
 <a href="${portalUrl}/mh-requests">View in Portal</a></div></body></html>`;
 
+    const confirmPage = (engName, reqId, id, engId) => `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Confirm Assignment</title>
+<style>body{font-family:Arial,sans-serif;background:#f0f4ff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}
+.card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.1);padding:40px 48px;max-width:440px;text-align:center;}
+.icon{font-size:48px;margin-bottom:16px;}h2{color:#B31818;margin:0 0 8px;}p{color:#475569;margin:0 0 24px;}
+button{background:#B31818;border:none;cursor:pointer;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;}
+button:hover{background:#991414;}</style>
+</head><body><div class="card"><div class="icon">❓</div><h2>Confirm Assignment</h2>
+<p>Are you sure you want to assign <strong>${engName}</strong> to request <strong>${reqId}</strong>?</p>
+<form method="POST" action="/api/asset-request/${id}/assign-link/${engId}">
+  <button type="submit">Confirm Assignment</button>
+</form>
+</div></body></html>`;
+
     const errorPage = (msg) => `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Error</title>
 <style>body{font-family:Arial,sans-serif;background:#fff5f5;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}
 .card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.1);padding:40px 48px;max-width:440px;text-align:center;}
@@ -768,66 +791,35 @@ a{background:#B31818;color:#fff;padding:12px 28px;border-radius:8px;text-decorat
         if (!engineer) return res.status(404).send(errorPage('Engineer not found. The link may be invalid.'));
 
         const reqQuery = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { mhRequestId: id };
-        const request = await MHRequest.findOneAndUpdate(
-            reqQuery,
-            {
-                $set: { assignedEngineer: engineer._id, assignedAt: new Date(), workflowStatus: 'Assigned', workflowState: 'L1_APPROVED', workflowVersion: 2, currentStage: 2, status: 'Accepted' },
-                $push: {
-                    history: { action: 'Updated', date: new Date(), details: `Engineer ${engineer.employeeName} (${engineer.employeeId}) assigned via email link` },
-                    stageHistory: {
-                        stage:     'L1_APPROVAL',
-                        state:     'L1_APPROVED',
-                        action:    'PED_ENGINEER_ASSIGNED',
-                        actor:     null,
-                        actorName: 'L1 Approver',
-                        actorRole: 'L1 Approver',
-                        comment:   `PED Engineer ${engineer.employeeName} (${engineer.employeeId}) was assigned via approval email link.`,
-                        timestamp: new Date(),
-                        metadata:  { assignedEngineer: engineer._id, engineerName: engineer.employeeName, engineerEmpId: engineer.employeeId, source: 'email_link' }
-                    }
-                }
-            },
-            { new: true }
-        );
+        const existing = await MHRequest.findOne(reqQuery).lean();
+        if (!existing) return res.status(404).send(errorPage('Request not found. It may have been deleted.'));
 
-        if (!request) return res.status(404).send(errorPage('Request not found. It may have been deleted.'));
-
-        // Notify engineer (non-blocking)
-        if (process.env.SMTP_HOST && process.env.SMTP_USER && engineer.mailId) {
-            const port = parseInt(process.env.SMTP_PORT, 10) || 465;
-            const isSecure = process.env.SMTP_SECURE === 'true' || port === 465;
-            const transporter = nodemailer.createTransport({
-                host: process.env.SMTP_HOST,
-                port: port,
-                secure: isSecure,
-                auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-                tls: { rejectUnauthorized: false }
-            });
-            const subject = `MH Request Assigned to You — ${request.mhRequestId}`;
-            const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-              <div style="background:#B31818;color:#fff;padding:20px 24px;border-radius:8px 8px 0 0;"><h2 style="margin:0;font-size:18px;">MH Request Assignment Notification</h2></div>
-              <div style="padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
-                <p>Dear <strong>${engineer.employeeName}</strong>,</p>
-                <p>For the MH request <strong>${request.mhRequestId}</strong>, you have been assigned as a PED engineer. Please log in to the portal to check for the design and assign a designer.</p>
-                <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0;">
-                  <tr><td style="padding:8px;font-weight:600;background:#f8fafc;width:40%;">Request ID</td><td style="padding:8px;">${request.mhRequestId}</td></tr>
-                  <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Handling Part</td><td style="padding:8px;">${request.handlingPartName}</td></tr>
-                  <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Department</td><td style="padding:8px;">${request.departmentName}</td></tr>
-                  <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Plant</td><td style="padding:8px;">${request.plantLocation}</td></tr>
-                  <tr><td style="padding:8px;font-weight:600;background:#f8fafc;">Problem Statement</td><td style="padding:8px;">${request.problemStatement}</td></tr>
-                </table>
-                <a href="${portalUrl}/mh-requests" style="background:#B31818;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">Open Portal & Assign Designer</a>
-                <p style="margin-top:24px;color:#64748b;font-size:13px;">Regards,<br>TVS-PED Portal</p>
-              </div></div>`;
-
-            transporter.sendMail({ from: process.env.SMTP_USER, to: engineer.mailId, subject, html })
-                .then(() => MHRequest.findByIdAndUpdate(id, { $push: { emailLog: { sentAt: new Date(), to: engineer.mailId, cc: '', subject, body: html, status: 'Delivered' } } }).catch(() => {}))
-                .catch(e => console.error('[AssignLink] Engineer email failed:', e.message));
+        if (req.method === 'GET') {
+            return res.send(confirmPage(`${engineer.employeeName} (${engineer.employeeId})`, existing.mhRequestId, id, engineerId));
         }
+
+        // Route through the same graph engine the portal's "Approve & Assign PED
+        // Engineer" button uses, so the request's position in the workflow
+        // advances correctly regardless of which path (email link or portal
+        // login) the L1 Approver takes. This also fires the PED_ENGINEER_ASSIGNED
+        // notification via the graph's own Communication node — no separate
+        // ad-hoc email needed here.
+        const linkActor = { _id: null, employeeId: null, email: 'email-link', role: 'L1 Approver' };
+        await submitAction(existing._id, {
+            decision: 'Approved',
+            actor: linkActor,
+            payload: { assignEngineerId: engineer._id.toString(), comment: 'Assigned via approval email link.' },
+            files: []
+        });
+
+        const request = await MHRequest.findById(existing._id).lean();
 
         res.send(successPage(`${engineer.employeeName} (${engineer.employeeId})`, request.mhRequestId));
     } catch (err) {
         console.error('[assignEngineerFromLink] Error:', err.message);
+        if (err instanceof WorkflowEngineError) {
+            return res.status(err.status).send(errorPage(err.message));
+        }
         res.status(500).send(errorPage('An unexpected error occurred. Please contact support.'));
     }
 };

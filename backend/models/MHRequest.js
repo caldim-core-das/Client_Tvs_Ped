@@ -184,7 +184,7 @@ const mhRequestSchema = new mongoose.Schema({
             'SUBMITTED', 'L1_APPROVED', 'L1_REJECTED',
             'DESIGN_IN_PROGRESS', 'DESIGN_SUBMITTED',
             'DESIGN_APPROVED', 'DESIGN_REJECTED',
-            'FINAL_APPROVED', 'FINAL_REJECTED',
+            'FINAL_APPROVED', 'FINAL_REJECTED', 'REVERTED',
             'IN_PRODUCTION', 'IMPLEMENTATION', 'COMPLETED', 'CANCELLED'
         ],
         default: null  // null = not yet migrated to v2
@@ -196,6 +196,20 @@ const mhRequestSchema = new mongoose.Schema({
     currentStage: {
         type: Number,
         default: null  // 1-7, maps to workflow stages
+    },
+
+    // ── Workflow Engine v3 — graph-driven position ─────────────────────────────
+    // NOTE: currentNodeId is the real source of truth for "what can happen next".
+    // workflowState above is kept as a derived/display-only label (written by the
+    // graph engine from edge metadata) so existing dashboards/badges/queries that
+    // group or filter by workflowState keep working unchanged.
+    currentNodeId: {
+        type: String,
+        default: null  // id of the node in the active WorkflowDefinition graph
+    },
+    workflowDefinitionVersion: {
+        type: Number,
+        default: null  // pins which published graph version this request runs against
     },
 
     // ── Stage Assignments (set by L1 Approver) ─────────────────────────────────
@@ -260,6 +274,7 @@ const mhRequestSchema = new mongoose.Schema({
     l1ApprovalComment:    { type: String, default: '' },
     checkerComment:       { type: String, default: '' },
     finalApprovalComment: { type: String, default: '' },
+    revertComment:        { type: String, default: '' },
 
     // ── Checker SOP Result (additive — null for pre-SOP records) ─────────────
     checkerSopResult: {

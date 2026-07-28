@@ -12,6 +12,7 @@
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
     "@reduxjs/toolkit": "^2.11.1",
+    "@xyflow/react": "^12.11.2",
     "ag-grid-community": "^35.0.1",
     "ag-grid-react": "^35.0.1",
     "antd": "^6.1.0",

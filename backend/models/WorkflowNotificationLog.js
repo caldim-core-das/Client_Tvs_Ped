@@ -27,6 +27,7 @@ const workflowNotificationLogSchema = new mongoose.Schema({
             'DESIGN_SUBMITTED',
             'DESIGN_APPROVED',
             'DESIGN_REJECTED',
+            'REVERTED',
             'FINAL_APPROVED',
             'FINAL_REJECTED',
             'IN_PRODUCTION',

@@ -1,7 +1,23 @@
 const express = require('express');
 const router  = express.Router();
 const { protect } = require('../middleware/authMiddleware');
-const { requireWorkflowRole } = require('../middleware/workflowAuthMiddleware');
+
+// Admin-only gate for Design Library writes (moved in-file since
+// workflowAuthMiddleware.js was removed — its role/transition maps became
+// WorkflowDefinition graph data, but this route never dealt with transitions,
+// just an admin check, so it gets its own tiny copy here).
+const requireWorkflowRole = (...roles) => (req, res, next) => {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+    const userRole = (req.user.role || '').trim().toLowerCase();
+    if (userRole === 'admin' || userRole === 'system admin' || userRole.includes('admin')) return next();
+    const allowedLower = roles.map(r => r.toLowerCase());
+    if (!allowedLower.includes(userRole)) {
+        return res.status(403).json({
+            message: `Role '${req.user.role}' is not permitted to perform this action. Required: ${roles.join(' or ')}`
+        });
+    }
+    next();
+};
 
 const {
     getAllDesigns,
