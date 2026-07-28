@@ -124,6 +124,7 @@ export default function L1ApprovalQueuePage() {
                                 {[
                                     { label: 'Submitted', status: 'past' },
                                     { label: 'L1 Approval', status: 'current' },
+                                    { label: 'PED Engineer', status: 'future' },
                                     { label: 'Design', status: 'future' },
                                     { label: 'Checker', status: 'future' },
                                     { label: 'Final', status: 'future' },

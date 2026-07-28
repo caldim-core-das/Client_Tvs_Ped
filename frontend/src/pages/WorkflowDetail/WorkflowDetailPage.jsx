@@ -99,7 +99,7 @@ export default function WorkflowDetailPage() {
             setRequest(reqRes.data);
             setWorkflow(wfRes.data);
 
-            const empRes = await axios.get(`${BASE_URL}/employees`, { headers: getAuthHeader() });
+            const empRes = await axios.get(`${BASE_URL}/employees?limit=1000`, { headers: getAuthHeader() });
             setEmployees(empRes.data?.data || []);
         } catch (e) {
             const message = e?.response?.data?.message || 'Failed to load request details';
