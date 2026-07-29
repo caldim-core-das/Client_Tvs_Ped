@@ -56,6 +56,21 @@ const { sendWorkflowNotification } = require('./workflowNotificationService');
 const { estimateLeadTime } = require('./leadTimeService');
 const { scoreSopAnswers } = require('./sopScoringService');
 const { sendRequesterStatusEmail } = require('../controllers/emailController');
+const { sameLocation } = require('../utils/locationMatch');
+
+// Picks the active employee for a role, preferring one whose plantLocation
+// matches the request's plantLocation (multiple employees can share a role
+// across different locations). Falls back to any active match for that role
+// if none share the request's location, so assignment never silently stalls.
+async function findEmployeeForRole(role, request) {
+    const candidates = await Employee.find({
+        role: new RegExp(`^\\s*${role}\\s*$`, 'i'),
+        status: /^\s*active\s*$/i
+    }).lean();
+    if (candidates.length === 0) return null;
+    const locationMatch = candidates.find(e => sameLocation(e.plantLocation, request.plantLocation));
+    return locationMatch || candidates[0];
+}
 
 const MAX_CHAIN_HOPS = 25;
 
@@ -112,10 +127,7 @@ async function resolveRecipient(config, request) {
         }
 
         case 'ROLE_LOOKUP': {
-            const emp = await Employee.findOne({
-                role: new RegExp(`^\\s*${config.roleToAssign}\\s*$`, 'i'),
-                status: /^\s*active\s*$/i
-            }).lean();
+            const emp = await findEmployeeForRole(config.roleToAssign, request);
             return emp?.mailId ? { email: emp.mailId, name: emp.employeeName, role: config.roleToAssign } : null;
         }
 
@@ -123,10 +135,7 @@ async function resolveRecipient(config, request) {
             const empId = request[config.recipientField];
             let emp = empId ? await Employee.findById(empId).lean() : null;
             if (!emp?.mailId && config.fallbackRole) {
-                emp = await Employee.findOne({
-                    role: new RegExp(`^\\s*${config.fallbackRole}\\s*$`, 'i'),
-                    status: /^\s*active\s*$/i
-                }).lean();
+                emp = await findEmployeeForRole(config.fallbackRole, request);
             }
             return emp?.mailId ? { email: emp.mailId, name: emp.employeeName, role: config.fallbackRole || config.recipientField } : null;
         }
@@ -323,7 +332,7 @@ async function submitAction(requestId, { decision, actor: reqUser, payload = {},
                     if (!emp) throw new WorkflowEngineError(404, `Employee not found for '${payloadKey}'.`);
                 }
             } else if (assignBy === 'ROLE_LOOKUP') {
-                const emp = await Employee.findOne({ role: new RegExp(`^\\s*${roleToAssign}\\s*$`, 'i'), status: /^\s*active\s*$/i });
+                const emp = await findEmployeeForRole(roleToAssign, request);
                 value = emp?._id || null;
             }
             if (targetField && value) request[targetField] = value;

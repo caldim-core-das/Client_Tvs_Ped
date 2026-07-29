@@ -9,6 +9,17 @@ const { estimateLeadTime } = require('../services/leadTimeService');
 const { sendWorkflowNotification } = require('../services/workflowNotificationService');
 const { computeLeadTimeStatus } = require('../utils/leadTimeStatus');
 const { initializeWorkflowPosition, submitAction, WorkflowEngineError } = require('../services/workflowEngine');
+const { sameLocation } = require('../utils/locationMatch');
+
+// Narrows a list of active employees to those at the request's plantLocation
+// (multiple employees can hold the same role across different locations).
+// Falls back to the full list if none share the request's location, so
+// notifications/assignment never silently stop for locations that haven't
+// been cleaned up in Employee Master yet.
+function filterByRequestLocation(employees, request) {
+    const matches = employees.filter(e => sameLocation(e.plantLocation, request.plantLocation));
+    return matches.length > 0 ? matches : employees;
+}
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,8 +32,9 @@ const { initializeWorkflowPosition, submitAction, WorkflowEngineError } = requir
 // ─────────────────────────────────────────────────────────────────────────────
 async function notifyL1OnSubmission(savedRequest, estimate, requester) {
     try {
-        // 1. Fetch L1 Approvers from Employee Master
-        const dept = savedRequest.departmentName;
+        // 1. Fetch L1 Approvers from Employee Master, scoped to this request's plant location
+        //    (multiple L1 Approvers can exist across locations — pick the ones matching
+        //    savedRequest.plantLocation; fall back to all active approvers if none match).
         let approvers = await Employee.find({
             role: /^\s*l1 approver\s*$/i,
             status: /^\s*active\s*$/i
@@ -31,6 +43,8 @@ async function notifyL1OnSubmission(savedRequest, estimate, requester) {
         if (!approvers || approvers.length === 0) {
             const fallbackApprover = await Employee.findOne({ status: /^\s*active\s*$/i }).lean();
             if (fallbackApprover) approvers = [fallbackApprover];
+        } else {
+            approvers = filterByRequestLocation(approvers, savedRequest);
         }
 
         if (!approvers || approvers.length === 0) {
@@ -38,7 +52,8 @@ async function notifyL1OnSubmission(savedRequest, estimate, requester) {
             return;
         }
 
-        // 2. Fetch active PED Engineers ONLY from Employee Master (excluding Designers & Requesters)
+        // 2. Fetch active PED Engineers ONLY from Employee Master (excluding Designers & Requesters),
+        //    scoped to this request's plant location the same way as L1 Approvers above.
         let pedEngineers = await Employee.find({
             status: /^\s*active\s*$/i,
             role: /^\s*ped engineer\s*$/i
@@ -50,6 +65,7 @@ async function notifyL1OnSubmission(savedRequest, estimate, requester) {
                 role: { $regex: /ped.*engineer/i }
             }).sort({ employeeName: 1 }).lean();
         }
+        pedEngineers = filterByRequestLocation(pedEngineers, savedRequest);
 
         // 3. Persist primary approver reference in request
         const primaryApprover = approvers[0];

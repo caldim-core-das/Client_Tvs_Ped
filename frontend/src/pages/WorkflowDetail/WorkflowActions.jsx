@@ -51,6 +51,23 @@ function filterEmployeesByLabel(employees, label) {
     return matches.length > 0 ? matches : employees;
 }
 
+// Mirrors backend/utils/locationMatch.js — strips parenthetical plant codes
+// ("Mysore (KA)" -> "mysore") so the request's plantLocation can be compared
+// against Employee Master's free-text plantLocation field.
+function normalizeLocation(str) {
+    return (str || '').replace(/\(.*?\)/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+// Narrows a role-filtered employee list to those at the request's location
+// (multiple people can share a role across locations). Falls back to the
+// full role-filtered list if none match, so the dropdown is never empty.
+function filterEmployeesByLocation(employees, requestLocation) {
+    const target = normalizeLocation(requestLocation);
+    if (!target) return employees;
+    const matches = employees.filter(e => normalizeLocation(e.plantLocation) === target);
+    return matches.length > 0 ? matches : employees;
+}
+
 function CommentModal({ title, commentRequired, minCommentLength = 1, fields = [], fieldValues, setFieldValues, onConfirm, onClose }) {
     const [comment, setComment] = useState('');
     const [error, setError] = useState('');
@@ -371,7 +388,7 @@ function CheckerSOPPanel({ requestId, onActionComplete }) {
     );
 }
 
-export default function WorkflowActions({ requestId, currentNode, employees = [], onActionComplete }) {
+export default function WorkflowActions({ requestId, currentNode, employees = [], requestLocation, onActionComplete }) {
     const { user } = useAuth();
     const role = user?.role || user?.permissions?.role;
 
@@ -431,7 +448,7 @@ export default function WorkflowActions({ requestId, currentNode, employees = []
     const modalDecision = modal;
     const modalFields = modalDecision ? requiredFieldsFor(modalDecision).map(f => ({
         ...f,
-        options: filterEmployeesByLabel(employees, f.label).map(e => (
+        options: filterEmployeesByLocation(filterEmployeesByLabel(employees, f.label), requestLocation).map(e => (
             <option key={e._id} value={e._id}>{e.employeeName} ({e.employeeId} · {e.departmentName || e.role})</option>
         ))
     })) : [];
