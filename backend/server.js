@@ -76,8 +76,9 @@ app.use('/api/project-plan', require('./routes/projectPlanRoutes'));
 app.use('/api/kpi-settings', require('./routes/kpiSettingsRoutes'));
 
 // Enterprise Workflow v2 routes
-app.use('/api/workflow',       require('./routes/workflowRoutes'));
-app.use('/api/design-library', require('./routes/designLibraryRoutes'));
+app.use('/api/workflow',             require('./routes/workflowRoutes'));
+app.use('/api/workflow-definitions', require('./routes/workflowDefinitionRoutes'));
+app.use('/api/design-library',       require('./routes/designLibraryRoutes'));
 
 
 // Public routes (no auth required — for landing page)

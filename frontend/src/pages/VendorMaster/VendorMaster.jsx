@@ -9,7 +9,6 @@ import { Modal } from 'antd';
 import { getApiBaseUrl } from '../../api/axiosConfig';
 import { DataGrid } from 'react-data-grid';
 import 'react-data-grid/lib/styles.css';
-import FreezeToolbar from '../../components/FreezeToolbar';
 import FrozenRowsDataGrid from '../../components/FrozenRowsDataGrid';
 import * as XLSX from 'xlsx';
 import { createActionColumn } from '../../config/agGridConfig';
@@ -452,10 +451,6 @@ const VendorMaster = () => {
         }
     ];
 
-    const freezeColumnList = dataGridColumns
-        .filter(col => col.key !== 'serial' && col.key !== 'actions')
-        .map(col => ({ key: col.key, name: col.name }));
-
     const autoFitColumns = React.useMemo(() => {
         const withFreeze = dataGridColumns
             .filter(col => !hiddenKeys.has(col.key))
@@ -556,17 +551,6 @@ const VendorMaster = () => {
                         </div>
                     </div>
 
-                    {/* Freeze toolbar */}
-                    <div className="pt-1 border-t border-gray-100">
-                        <FreezeToolbar
-                            columns={freezeColumnList}
-                            frozenKeys={frozenKeys}
-                            onApply={setFrozenKeys}
-                            frozenRowCount={frozenRowCount}
-                            setFrozenRowCount={setFrozenRowCount}
-                            maxRows={Math.min(gridRows.length, 50)}
-                        />
-                    </div>
                 </div>
                 {/* ── Grid Container ── */}
                 <div className="flex-1 flex flex-col w-full min-h-0">

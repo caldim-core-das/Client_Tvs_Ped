@@ -103,7 +103,7 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
         const fetchCount = async (queueType) => {
             try {
                 const base = getApiBaseUrl();
-                const res = await fetch(`${base}/workflow/queue/${queueType}`, { headers });
+                const res = await fetch(`${base}/api/workflow/queue/${queueType}`, { headers });
                 if (!res.ok) return 0;
                 const data = await res.json();
                 return data.count ?? 0;
@@ -111,7 +111,8 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
         };
 
         const updates = {};
-        if (role === 'L1 Approver' || role === 'PED Engineer' || role === 'Admin') {
+        // L1 queue badge: only for L1 Approver and Admin (PED Engineers don't act on L1)
+        if (role === 'L1 Approver' || role === 'Admin') {
             updates.l1 = await fetchCount('l1');
         }
         if (role === 'Designer' || role === 'PED Engineer' || role === 'Admin') {
@@ -227,6 +228,7 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
             { name: 'Vendor Loading',   short: 'Loading',    icon: BarChart2,     path: '/vendor-master/loading',   permission: 'vendorLoading' },
         ]},
         { label: 'SYSTEM', items: [
+            { name: 'Workflow Studio',  short: 'Studio',     icon: Shield,        path: '/workflow-studio',         permission: 'workflowStudio' },
             { name: 'Settings',         short: 'Settings',   icon: Settings,      path: '/settings',                permission: 'settings' },
         ]},
     ];

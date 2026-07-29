@@ -8,7 +8,6 @@ import { fetchEmployees, deleteEmployee } from '../../redux/slices/employeeSlice
 import { Modal } from 'antd';
 import 'react-data-grid/lib/styles.css';
 import * as XLSX from 'xlsx';
-import FreezeToolbar from '../../components/FreezeToolbar';
 import FrozenRowsDataGrid from '../../components/FrozenRowsDataGrid';
 import 'react-data-grid/lib/styles.css';
 
@@ -610,10 +609,6 @@ const EmployeeMaster = () => {
     ];
 
 
-    const freezeColumnList = dataGridColumns
-        .filter(col => col.key !== 'serial')
-        .map(col => ({ key: col.key, name: col.name }));
-
     const autoFitColumns = useMemo(() => {
         const withFreeze = dataGridColumns
             .filter(col => !hiddenKeys.has(col.key))
@@ -749,17 +744,6 @@ const EmployeeMaster = () => {
                         </div>
                     </div>
 
-                    {/* Freeze toolbar — subtle separator */}
-                    <div className="pt-1 border-t border-gray-100">
-                        <FreezeToolbar
-                            columns={freezeColumnList}
-                            frozenKeys={frozenKeys}
-                            onApply={setFrozenKeys}
-                            frozenRowCount={frozenRowCount}
-                            setFrozenRowCount={setFrozenRowCount}
-                            maxRows={Math.min(gridRows.length, 50)}
-                        />
-                    </div>
                 </div>
 
                 {/* ── Grid Container ── */}

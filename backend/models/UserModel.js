@@ -11,7 +11,7 @@ const ROLE_PERMISSIONS = {
         l1ApprovalQueue: true, designQueue: true, checkerQueue: true, finalApproval: true,
         assetManagement: true, assetSummary: true, designLibrary: true,
         employeeMaster: true, vendorMaster: true, vendorScoring: true, vendorLoading: true,
-        settings: true
+        settings: true, workflowStudio: true
     },
     'Requester': {
         dashboard: true, mhRequest: true, allRequestsOverview: true,
@@ -19,48 +19,48 @@ const ROLE_PERMISSIONS = {
         l1ApprovalQueue: false, designQueue: false, checkerQueue: false, finalApproval: false,
         assetManagement: false, assetSummary: false, designLibrary: false,
         employeeMaster: false, vendorMaster: false, vendorScoring: false, vendorLoading: false,
-        settings: false
-    },
+        settings: false, workflowStudio: false
+},
     'L1 Approver': {
         dashboard: true, mhRequest: true, allRequestsOverview: true,
         mhDevelopment: true, projectPlanTracking: true,
         l1ApprovalQueue: true, designQueue: false, checkerQueue: false, finalApproval: false,
         assetManagement: false, assetSummary: false, designLibrary: false,
         employeeMaster: false, vendorMaster: false, vendorScoring: false, vendorLoading: false,
-        settings: false
-    },
+        settings: false, workflowStudio: false
+},
     'PED Engineer': {
         dashboard: true, mhRequest: true, allRequestsOverview: true,
         mhDevelopment: true, projectPlanTracking: true,
         l1ApprovalQueue: true, designQueue: true, checkerQueue: false, finalApproval: false,
         assetManagement: true, assetSummary: true, designLibrary: true,
         employeeMaster: false, vendorMaster: false, vendorScoring: false, vendorLoading: false,
-        settings: false
-    },
+        settings: false, workflowStudio: false
+},
     'Designer': {
         dashboard: true, mhRequest: false, allRequestsOverview: true,
         mhDevelopment: true, projectPlanTracking: true,
         l1ApprovalQueue: false, designQueue: true, checkerQueue: false, finalApproval: false,
         assetManagement: false, assetSummary: false, designLibrary: true,
         employeeMaster: false, vendorMaster: false, vendorScoring: false, vendorLoading: false,
-        settings: false
-    },
+        settings: false, workflowStudio: false
+},
     'Checker': {
         dashboard: true, mhRequest: false, allRequestsOverview: true,
         mhDevelopment: true, projectPlanTracking: true,
         l1ApprovalQueue: false, designQueue: false, checkerQueue: true, finalApproval: false,
         assetManagement: false, assetSummary: false, designLibrary: true,
         employeeMaster: false, vendorMaster: false, vendorScoring: false, vendorLoading: false,
-        settings: false
-    },
+        settings: false, workflowStudio: false
+},
     'Final Approver': {
         dashboard: true, mhRequest: false, allRequestsOverview: true,
         mhDevelopment: true, projectPlanTracking: true,
         l1ApprovalQueue: false, designQueue: false, checkerQueue: false, finalApproval: true,
         assetManagement: false, assetSummary: false, designLibrary: true,
         employeeMaster: false, vendorMaster: false, vendorScoring: false, vendorLoading: false,
-        settings: false
-    }
+        settings: false, workflowStudio: false
+}
 };
 
 const userSchema = mongoose.Schema({
@@ -104,7 +104,8 @@ const userSchema = mongoose.Schema({
         vendorMaster:         { type: Boolean, default: false },
         vendorScoring:        { type: Boolean, default: false },
         vendorLoading:        { type: Boolean, default: false },
-        settings:             { type: Boolean, default: false }
+        settings:             { type: Boolean, default: false },
+        workflowStudio:       { type: Boolean, default: false }
     },
     status: {
         type: String,
