@@ -81,9 +81,13 @@ const QUEUE_NODE_MAP = {
     production: ['human-production', 'human-implementation', 'human-completed']
 };
 
+// States that mean the design queue work is done (for history tab)
+const DESIGN_HISTORY_STATES = ['DESIGN_SUBMITTED', 'DESIGN_APPROVED', 'DESIGN_REJECTED', 'FINAL_APPROVED', 'FINAL_REJECTED', 'IN_PRODUCTION', 'IMPLEMENTATION', 'COMPLETED', 'REVERTED'];
+
 const getWorkflowQueue = asyncHandler(async (req, res) => {
     const { queueType } = req.params;
     const userId = req.user._id;
+    const isHistory = req.query.history === 'true';
 
     let query = {};
 
@@ -92,23 +96,58 @@ const getWorkflowQueue = asyncHandler(async (req, res) => {
     } else if (queueType === 'l1') {
         query = {
             $or: [
+                // New engine: request is at the L1 human task node
                 { currentNodeId: { $in: QUEUE_NODE_MAP.l1 } },
-                // Legacy/pre-migration records that haven't been backfilled yet
-                { currentNodeId: { $exists: false } },
-                { currentNodeId: null, workflowState: { $in: ['SUBMITTED', 'Notified', 'Assigned', 'Pending', 'REVERTED', 'L1_REJECTED'] } },
-                { currentNodeId: null, workflowStatus: { $in: ['Pending', 'Notified', 'Assigned', 'Active', 'Rejected', 'Reverted'] } }
+                // Legacy/unmigrated records with no currentNodeId — only genuinely
+                // pending ones (workflowState missing or still SUBMITTED) count.
+                // Must NOT fall back to workflowStatus alone: that field can still
+                // read 'Assigned' for a request that has already been L1-approved,
+                // which would wrongly keep it in this queue forever.
+                {
+                    $and: [
+                        { $or: [{ currentNodeId: null }, { currentNodeId: { $exists: false } }] },
+                        { $or: [{ workflowState: null }, { workflowState: { $exists: false } }, { workflowState: 'SUBMITTED' }] }
+                    ]
+                }
             ]
         };
     } else if (queueType === 'design') {
         const empId = req.user.employeeId?._id || req.user.employeeId;
-        if (req.user.role === 'PED Engineer') {
-            query.currentNodeId = { $in: QUEUE_NODE_MAP.design };
-            if (empId) query.assignedEngineer = empId;
-        } else if (req.user.role === 'Designer') {
-            query.currentNodeId = 'human-design-submit';
-            if (empId) query.assignedDesigner = empId;
+        if (isHistory) {
+            // History tab: show completed design-stage work
+            if (req.user.role === 'PED Engineer') {
+                query.workflowState = { $in: DESIGN_HISTORY_STATES };
+                if (empId) query.assignedEngineer = empId;
+            } else if (req.user.role === 'Designer') {
+                query.workflowState = { $in: DESIGN_HISTORY_STATES };
+                if (empId) query.assignedDesigner = empId;
+            } else {
+                query.workflowState = { $in: DESIGN_HISTORY_STATES };
+            }
         } else {
-            query.currentNodeId = { $in: QUEUE_NODE_MAP.design };
+            // Active tab: PED Engineer sees tasks at human-ped-assign (assign design team)
+            // Designer sees tasks at human-design-submit (upload design)
+            if (req.user.role === 'PED Engineer') {
+                // Show all requests at the PED assignment node assigned to this engineer
+                // Also show requests at design-submit in case engineer is Admin-acting
+                if (empId) {
+                    query = {
+                        $or: [
+                            // Requests awaiting PED to assign design team
+                            { currentNodeId: 'human-ped-assign', assignedEngineer: empId },
+                            // Requests in active design (for oversight)
+                            { currentNodeId: 'human-design-submit', assignedEngineer: empId }
+                        ]
+                    };
+                } else {
+                    query.currentNodeId = { $in: QUEUE_NODE_MAP.design };
+                }
+            } else if (req.user.role === 'Designer') {
+                query.currentNodeId = 'human-design-submit';
+                if (empId) query.assignedDesigner = empId;
+            } else {
+                query.currentNodeId = { $in: QUEUE_NODE_MAP.design };
+            }
         }
     } else if (queueType === 'checker') {
         query.currentNodeId = 'human-checker';

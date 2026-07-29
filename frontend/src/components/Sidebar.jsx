@@ -111,7 +111,8 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, windowWidth }) => {
         };
 
         const updates = {};
-        if (role === 'L1 Approver' || role === 'PED Engineer' || role === 'Admin') {
+        // L1 queue badge: only for L1 Approver and Admin (PED Engineers don't act on L1)
+        if (role === 'L1 Approver' || role === 'Admin') {
             updates.l1 = await fetchCount('l1');
         }
         if (role === 'Designer' || role === 'PED Engineer' || role === 'Admin') {
