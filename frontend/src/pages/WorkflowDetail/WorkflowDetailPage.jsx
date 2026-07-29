@@ -386,6 +386,7 @@ export default function WorkflowDetailPage() {
                             requestId={id}
                             currentNode={workflow?.currentNode}
                             employees={employees}
+                            requestLocation={request.plantLocation}
                             onActionComplete={load}
                         />
 
