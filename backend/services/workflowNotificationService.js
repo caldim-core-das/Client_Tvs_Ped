@@ -394,6 +394,31 @@ function buildEmailTemplate(event, data) {
  * @param {Object} [options.leadTime] - Lead time data (optional)
  */
 async function sendWorkflowNotification({ request, event, recipient, actor, leadTime = null, pedEngineers = [] }) {
+    if (event === 'REQUEST_SUBMITTED' && (!pedEngineers || pedEngineers.length === 0)) {
+        try {
+            const Employee = require('../models/EmployeeModel');
+            const { sameLocation } = require('../utils/locationMatch');
+            let engineers = await Employee.find({
+                status: /^\s*active\s*$/i,
+                role: /^\s*ped engineer\s*$/i
+            }).sort({ employeeName: 1 }).lean();
+
+            if (!engineers || engineers.length === 0) {
+                engineers = await Employee.find({
+                    status: /^\s*active\s*$/i,
+                    role: { $regex: /ped.*engineer/i }
+                }).sort({ employeeName: 1 }).lean();
+            }
+
+            if (engineers && engineers.length > 0) {
+                const matches = engineers.filter(e => sameLocation(e.plantLocation, request.plantLocation));
+                pedEngineers = matches.length > 0 ? matches : engineers;
+            }
+        } catch (fetchErr) {
+            console.error('[WorkflowNotification] Error fetching fallback PED engineers:', fetchErr.message);
+        }
+    }
+
     const transporter = createTransporter();
     const { subject, html } = buildEmailTemplate(event, { request, actor, recipient, leadTime, pedEngineers });
 

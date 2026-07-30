@@ -82,8 +82,12 @@ async function notifyL1OnSubmission(savedRequest, estimate, requester) {
             leadTimeEstimateDays: estimate.estimatedDays
         }) : null;
 
+        const sentRecipients = new Set();
         for (const approver of approvers) {
             if (!approver.mailId) continue;
+            const normalizedEmail = approver.mailId.trim().toLowerCase();
+            if (sentRecipients.has(normalizedEmail)) continue;
+            sentRecipients.add(normalizedEmail);
 
             await sendWorkflowNotification({
                 request: savedRequest,
